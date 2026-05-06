@@ -1,0 +1,14 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Netlify
+.netlify/
+
+# Environment / secrets (for when Firebase is added)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log

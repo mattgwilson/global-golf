@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Global Golf</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Globe -->
+    <div id="globe-container"></div>
+
+    <!-- Scale bar — sibling of canvas so it isn't covered by it -->
+    <div id="scale-bar" class="scale-bar">
+      <div id="scale-bar-inner" class="scale-bar-inner"></div>
+      <div id="scale-bar-text" class="scale-bar-label">1,000 km</div>
+    </div>
+
+    <!-- Sidebar -->
+    <div id="sidebar">
+
+      <div class="sidebar-header">
+        <div class="header-row">
+          <h1>⛳ Global Golf</h1>
+          <div class="unit-toggle">
+            <button id="btn-km" class="unit-btn active">km</button>
+            <button id="btn-mi" class="unit-btn">mi</button>
+          </div>
+        </div>
+        <p>Navigate the globe, capital by capital</p>
+      </div>
+
+      <!-- Start panel -->
+      <div id="start-panel">
+        <p>Choose your club, type a capital city, and travel the world in as few strokes as possible.</p>
+
+        <div class="mode-section-label">Single Player</div>
+        <div class="mode-buttons">
+          <button id="btn-daily" class="mode-btn">
+            <span class="mode-icon">📅</span>
+            <span class="mode-label">Daily</span>
+            <span class="mode-sub">Same puzzle for everyone</span>
+          </button>
+          <button id="btn-random" class="mode-btn">
+            <span class="mode-icon">🎲</span>
+            <span class="mode-label">Random</span>
+            <span class="mode-sub">Fresh random challenge</span>
+          </button>
+        </div>
+
+        <div class="mode-section-label">US State Capitals</div>
+        <div class="mode-buttons">
+          <button id="btn-us-daily" class="mode-btn us-btn">
+            <span class="mode-icon">🇺🇸</span>
+            <span class="mode-label">US Daily</span>
+            <span class="mode-sub">50 state capitals</span>
+          </button>
+          <button id="btn-us-random" class="mode-btn us-btn">
+            <span class="mode-icon">🎲</span>
+            <span class="mode-label">US Random</span>
+            <span class="mode-sub">Random state route</span>
+          </button>
+        </div>
+
+        <div class="mode-section-label">Multiplayer</div>
+        <div class="mode-buttons multi">
+          <button id="btn-1v1" class="mode-btn">
+            <span class="mode-icon">👥</span>
+            <span class="mode-label">1v1</span>
+            <span class="mode-sub">Pass &amp; play</span>
+          </button>
+          <button id="btn-vs-cpu" class="mode-btn">
+            <span class="mode-icon">🤖</span>
+            <span class="mode-label">vs CPU</span>
+            <span class="mode-sub">Challenge the computer</span>
+          </button>
+          <button id="btn-battle" class="mode-btn">
+            <span class="mode-icon">⚔️</span>
+            <span class="mode-label">Battle Royale</span>
+            <span class="mode-sub">2–4 players</span>
+          </button>
+        </div>
+
+        <!-- vs CPU setup -->
+        <div id="setup-cpu" class="setup-panel" style="display:none">
+          <div class="setup-title">Select Difficulty</div>
+          <div class="diff-row">
+            <button class="diff-btn" data-diff="easy">🟢 Easy</button>
+            <button class="diff-btn" data-diff="medium">🟡 Medium</button>
+            <button class="diff-btn" data-diff="hard">🔴 Hard</button>
+          </div>
+          <button id="btn-start-cpu" class="start-setup-btn">Start vs CPU</button>
+        </div>
+
+        <!-- 1v1 setup -->
+        <div id="setup-1v1" class="setup-panel" style="display:none">
+          <div class="setup-title">Player Names</div>
+          <input id="p1-name" class="setup-input p1" type="text" placeholder="Player 1" value="Player 1">
+          <input id="p2-name" class="setup-input p2" type="text" placeholder="Player 2" value="Player 2">
+          <button id="btn-start-1v1" class="start-setup-btn">Start 1v1</button>
+        </div>
+
+        <!-- Battle Royale setup -->
+        <div id="setup-battle" class="setup-panel" style="display:none">
+          <div class="setup-title">Battle Royale</div>
+          <div class="count-row">
+            <span class="count-label">Players:</span>
+            <button class="count-btn active" data-count="2">2</button>
+            <button class="count-btn" data-count="3">3</button>
+            <button class="count-btn" data-count="4">4</button>
+          </div>
+          <div id="battle-names" class="battle-name-list"></div>
+          <button id="btn-start-battle" class="start-setup-btn">Start Battle</button>
+        </div>
+
+      </div><!-- /start-panel -->
+
+      <!-- Game panel -->
+      <div id="game-panel">
+
+        <!-- Active player indicator (multiplayer only) -->
+        <div id="player-indicator" class="player-indicator" style="display:none">
+          <span class="player-dot"></span>
+          <span id="indicator-name"></span>
+        </div>
+
+        <!-- Scoreboard -->
+        <div class="scoreboard">
+          <div class="score-item">
+            <label>Current Position</label>
+            <div id="current-city" class="city-name current">—</div>
+          </div>
+          <div class="score-item">
+            <label>Target</label>
+            <div class="city-name target">Find the red dot</div>
+          </div>
+          <div class="score-nums">
+            <div class="score-num">
+              <span id="strokes" class="num">0</span>
+              <span class="lbl">Strokes</span>
+            </div>
+            <div class="score-num">
+              <span id="penalties" class="num">0</span>
+              <span class="lbl">Penalties</span>
+            </div>
+            <div class="score-num">
+              <span id="par" class="num">—</span>
+              <span class="lbl">Par</span>
+            </div>
+            <div class="score-num">
+              <span id="relative-score" class="num">—</span>
+              <span id="score-label" class="lbl">&nbsp;</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Multiplayer mini-scoreboard -->
+        <div id="players-panel" class="players-panel" style="display:none"></div>
+
+        <!-- Club selection -->
+        <div class="section-label">Select Club</div>
+        <div id="clubs"></div>
+
+        <!-- City input -->
+        <div class="input-row">
+          <input id="city-input" type="text" placeholder="Type a capital city..." autocomplete="off" spellcheck="false">
+          <button id="btn-shoot">Shoot</button>
+        </div>
+
+        <!-- Message -->
+        <div id="message" class="message"></div>
+
+        <!-- Shot history -->
+        <div class="shot-history">
+          <div class="section-label">Shot History</div>
+          <div id="shot-list">
+            <div class="empty-state">No shots yet</div>
+          </div>
+        </div>
+
+        <button id="btn-new-game">← New Game</button>
+      </div><!-- /game-panel -->
+
+    </div><!-- /sidebar -->
+  </div><!-- /app -->
+
+  <!-- Finish overlay -->
+  <div id="finish-overlay">
+    <div class="finish-card">
+      <span id="finish-medal"></span>
+      <div id="finish-title"></div>
+      <div id="finish-details"></div>
+      <div class="finish-buttons">
+        <button id="btn-play-again">Play Again</button>
+        <button id="btn-new-from-finish">New Game</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/globe.gl@2.31.0/dist/globe.gl.min.js"></script>
+  <script src="js/capitals.js"></script>
+  <script src="js/us-states.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
