@@ -104,17 +104,6 @@ function initGlobe() {
   globe.controls().autoRotateSpeed = 0;
   globe.controls().enableZoom      = true;
 
-  fetch('countries.geojson')
-    .then(r => r.json())
-    .then(({ features }) => {
-      globe
-        .polygonsData(features)
-        .polygonCapColor(() => 'rgba(0,212,255,0.08)')
-        .polygonSideColor(() => 'rgba(0,212,255,0.35)')
-        .polygonStrokeColor(() => '#00d4ff')
-        .polygonAltitude(0.01);
-    });
-
   const ro = new ResizeObserver(entries => {
     const { width, height } = entries[0].contentRect;
     if (width > 0 && height > 0) globe.width(width).height(height);
