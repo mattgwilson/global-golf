@@ -6,7 +6,7 @@
   <title>Global Golf</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <div id="app">
@@ -88,6 +88,41 @@
           </button>
         </div>
 
+        <div class="mode-section-label">Online</div>
+        <div class="mode-buttons">
+          <button id="btn-create-room" class="mode-btn">
+            <span class="mode-icon">🌐</span>
+            <span class="mode-label">Create Game</span>
+            <span class="mode-sub">Generate a room code</span>
+          </button>
+          <button id="btn-join-room" class="mode-btn">
+            <span class="mode-icon">🔗</span>
+            <span class="mode-label">Join Game</span>
+            <span class="mode-sub">Enter a room code</span>
+          </button>
+        </div>
+
+        <!-- Online: Create room setup -->
+        <div id="setup-online-create" class="setup-panel" style="display:none">
+          <div class="setup-title">Create Online Game</div>
+          <input id="online-create-name" class="setup-input" type="text" placeholder="Your name" maxlength="20">
+          <div class="diff-row">
+            <button class="diff-btn online-map-btn selected" data-map="random">🌍 World</button>
+            <button class="diff-btn online-map-btn" data-map="us-random">🇺🇸 US States</button>
+          </div>
+          <button id="btn-do-create" class="start-setup-btn">Create Room</button>
+          <div id="create-error" class="online-error"></div>
+        </div>
+
+        <!-- Online: Join room setup -->
+        <div id="setup-online-join" class="setup-panel" style="display:none">
+          <div class="setup-title">Join Online Game</div>
+          <input id="online-join-name" class="setup-input" type="text" placeholder="Your name" maxlength="20">
+          <input id="online-room-code" class="setup-input online-code-input" type="text" placeholder="Room code" maxlength="4">
+          <button id="btn-do-join" class="start-setup-btn">Join Room</button>
+          <div id="join-error" class="online-error"></div>
+        </div>
+
         <!-- vs CPU setup -->
         <div id="setup-cpu" class="setup-panel" style="display:none">
           <div class="setup-title">Select Difficulty</div>
@@ -123,6 +158,19 @@
       </div><!-- /start-panel -->
 
       <!-- Game panel -->
+      <!-- Online lobby -->
+      <div id="online-lobby" style="display:none">
+        <div class="lobby-header">
+          <div class="lobby-code-label">Room Code</div>
+          <div id="lobby-code" class="lobby-code">····</div>
+          <button id="btn-copy-code" class="copy-btn">Copy</button>
+        </div>
+        <div id="lobby-players" class="lobby-players"></div>
+        <div id="lobby-status" class="lobby-status">Waiting for opponent…</div>
+        <button id="btn-start-online" class="start-setup-btn" style="display:none">Start Game</button>
+        <button id="btn-leave-lobby" class="auth-link" style="margin-top:4px">Leave Room</button>
+      </div>
+
       <div id="game-panel">
 
         <!-- Active player indicator (multiplayer only) -->
@@ -361,6 +409,7 @@
   <script src="js/firebase-init.js?v=2"></script>
   <script src="js/stats.js?v=2"></script>
   <script src="js/auth.js?v=2"></script>
-  <script src="js/main.js?v=2"></script>
+  <script src="js/online.js?v=1"></script>
+  <script src="js/main.js?v=4"></script>
 </body>
 </html>

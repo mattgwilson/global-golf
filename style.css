@@ -1407,6 +1407,112 @@ html, body {
   color: #f87171;
 }
 
+/* ── Online setup ─────────────────────────────────────────── */
+
+.online-error {
+  font-size: 0.72rem;
+  color: #f87171;
+  min-height: 16px;
+  text-align: center;
+}
+
+.online-code-input {
+  text-transform: uppercase;
+  letter-spacing: 6px;
+  font-size: 1.1rem;
+  text-align: center;
+  font-weight: 800;
+}
+
+/* ── Online lobby ─────────────────────────────────────────── */
+
+#online-lobby {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 16px;
+  overflow-y: auto;
+}
+
+.lobby-header { text-align: center; width: 100%; }
+
+.lobby-code-label {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.lobby-code {
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: 10px;
+  color: var(--green);
+  text-shadow: 0 0 20px rgba(0,255,136,0.35);
+  font-family: monospace;
+}
+
+.copy-btn {
+  margin-top: 10px;
+  padding: 5px 16px;
+  background: rgba(0,255,136,0.08);
+  border: 1px solid rgba(0,255,136,0.3);
+  border-radius: 6px;
+  color: var(--green);
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.copy-btn:hover { background: rgba(0,255,136,0.18); }
+
+.lobby-players {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lobby-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--pc, #a78bfa);
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.lobby-waiting { opacity: 0.45; font-style: italic; --pc: var(--border); }
+
+.lobby-player-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--pc, #a78bfa);
+  flex-shrink: 0;
+}
+
+.lobby-player-name { flex: 1; }
+.lobby-you { color: var(--text-muted); font-weight: 400; font-size: 0.72rem; }
+.lobby-check { color: var(--green); }
+
+.lobby-status {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.5;
+}
+
 /* ── How to play ──────────────────────────────────────────── */
 
 .howto-card {

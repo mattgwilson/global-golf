@@ -4,6 +4,11 @@ let selectedClub = null;
 let aiThinking   = false;
 let useImperial  = localStorage.getItem('golf-unit') === 'mi';
 
+// Online multiplayer state
+let onlineMode        = false;
+let onlinePrevData    = null;
+let selectedOnlineMap = 'random';
+
 function fmtDist(km) {
   if (useImperial) return `${Math.round(km * 0.621371).toLocaleString()} mi`;
   return `${km.toLocaleString()} km`;
@@ -95,8 +100,8 @@ function initGlobe() {
     .height(container.clientHeight)
     (container);
 
-  globe.controls().autoRotate      = true;
-  globe.controls().autoRotateSpeed = 0.4;
+  globe.controls().autoRotate      = false;
+  globe.controls().autoRotateSpeed = 0;
   globe.controls().enableZoom      = true;
 
   fetch('https://raw.githubusercontent.com/vasturiano/globe.gl/master/example/country-borders/countries.geojson')
@@ -180,9 +185,7 @@ function updateGlobe() {
 }
 
 function flyTo(capital, altitudeFactor = 1.8) {
-  globe.controls().autoRotate = false;
   globe.pointOfView({ lat: capital.lat, lng: capital.lng, altitude: altitudeFactor }, 1200);
-  setTimeout(() => { globe.controls().autoRotate = true; }, 2000);
 }
 
 // ── UI helpers ─────────────────────────────────────────────────────────────────
@@ -392,10 +395,262 @@ function showFinishScreen() {
   overlay.style.display = 'flex';
 }
 
+// ── Online multiplayer UI ──────────────────────────────────────────────────────
+
+function enterLobby(roomId) {
+  el('start-panel').style.display  = 'none';
+  el('online-lobby').style.display = 'flex';
+  el('lobby-code').textContent     = roomId;
+  el('btn-start-online').style.display = 'none';
+  el('lobby-players').innerHTML    = '';
+  el('lobby-status').textContent   = 'Connecting…';
+  onlineListen(roomId, onRoomUpdate);
+}
+
+function onRoomUpdate(roomData) {
+  if (roomData.status === 'lobby') {
+    handleLobbyUpdate(roomData);
+  } else {
+    if (!onlineMode) {
+      onlineMode = true;
+      initOnlineGame(roomData);
+      onlinePrevData = roomData;
+    }
+    handleOnlineUpdate(roomData);
+  }
+}
+
+function handleLobbyUpdate(roomData) {
+  const myIdx  = onlineGetMyIdx();
+  const isHost = myIdx === 0;
+
+  let html = roomData.players.map((p, i) => `
+    <div class="lobby-player" style="--pc:${p.color}">
+      <span class="lobby-player-dot"></span>
+      <span class="lobby-player-name">${p.name}${i === 0 ? ' <span class="lobby-you">(host)</span>' : ''}${p.id === myPlayerId() ? ' <span class="lobby-you">(you)</span>' : ''}</span>
+      <span class="lobby-check">✓</span>
+    </div>`).join('');
+
+  if (roomData.players.length < 2) {
+    html += `<div class="lobby-player lobby-waiting">
+      <span class="lobby-player-dot"></span>
+      <span class="lobby-player-name">Waiting for opponent…</span>
+    </div>`;
+  }
+  el('lobby-players').innerHTML = html;
+
+  const ready = isHost && roomData.players.length === 2;
+  el('btn-start-online').style.display = ready ? 'block' : 'none';
+  el('lobby-status').textContent = ready
+    ? 'Both players ready!'
+    : (isHost ? 'Share the code above with your friend' : 'Waiting for host to start…');
+}
+
+function initOnlineGame(roomData) {
+  const myIdx = onlineGetMyIdx();
+  if (myIdx < 0) return;
+  const me   = roomData.players[myIdx];
+  const isUS = roomData.mode === 'us-random';
+
+  game.reset();
+  game.mode           = roomData.mode;
+  game.activeCapitals = isUS ? US_STATE_CAPITALS : CAPITALS;
+  game.activeClubs    = isUS ? US_CLUBS : CLUBS;
+  game.penaltyMargin  = isUS ? US_PENALTY_MARGIN : PENALTY_MARGIN;
+  game.capitalType    = isUS ? 'US state capital' : 'world capital';
+  game.target         = roomData.target;
+  game.par            = roomData.par;
+  game.players = [{
+    name: me.name, color: me.color, isAI: false, difficulty: null,
+    current: me.current, strokes: me.strokes, penalties: me.penalties,
+    shots: [], finished: me.finished, finishOrder: null,
+  }];
+  game.activePlayerIdx = 0;
+
+  aiThinking   = false;
+  selectedClub = null;
+  el('city-input').value       = '';
+  el('city-input').placeholder = isUS ? 'Type a state capital…' : 'Type a capital city…';
+  el('shot-list').innerHTML    = '<div class="empty-state">No shots yet</div>';
+  el('finish-overlay').style.display = 'none';
+  setMessage('');
+  document.querySelectorAll('.club-btn').forEach(b => b.classList.remove('selected'));
+
+  buildClubButtons();
+  el('online-lobby').style.display = 'none';
+  el('start-panel').style.display  = 'none';
+  el('game-panel').style.display   = 'flex';
+  flyTo(roomData.startCity, isUS ? 1.4 : 2.0);
+}
+
+function handleOnlineUpdate(roomData) {
+  const myIdx    = onlineGetMyIdx();
+  if (myIdx < 0) return;
+  const me       = roomData.players[myIdx];
+  const otherIdx = myIdx === 0 ? 1 : 0;
+  const other    = roomData.players[otherIdx];
+
+  // Sync local game player from Firestore
+  game.players[0].current   = me.current;
+  game.players[0].strokes   = me.strokes;
+  game.players[0].penalties = me.penalties;
+  game.players[0].finished  = me.finished;
+
+  // Detect new opponent shot and animate it
+  const prevLen = onlinePrevData?.players?.[otherIdx]?.shots?.length ?? 0;
+  const currLen = other?.shots?.length ?? 0;
+  if (other && currLen > prevLen) {
+    const s = other.shots[other.shots.length - 1];
+    flyTo(s.to, 1.8);
+    if (s.overshootDest) {
+      setMessage(`${other.name}: Overshot → landed in ${s.to.name} — +1 penalty.`, 'warn');
+    } else if (s.penalty) {
+      setMessage(`${other.name}: Penalty! ${fmtDist(s.distKm)} — ${s.idealClub} needed.`, 'warn');
+    } else {
+      setMessage(`${other.name}: ${fmtDist(s.distKm)} with ${s.club}.`, 'info');
+    }
+    if (s.to.name === roomData.target.name) {
+      setMessage(`${other.name} reached ${roomData.target.name}!`, 'info');
+    }
+  }
+
+  rebuildOnlineShotList(roomData, myIdx);
+  updateGlobeOnline(roomData);
+  updateScoreboard();
+  updateOnlinePlayersPanel(roomData);
+
+  const isMyTurn = onlineIsMyTurn();
+  updateOnlineIndicator(roomData, isMyTurn);
+  disableInput(!isMyTurn || roomData.status === 'finished');
+
+  if (roomData.status === 'finished') {
+    setTimeout(() => showOnlineFinishScreen(roomData), 800);
+  }
+
+  onlinePrevData = roomData;
+}
+
+function updateGlobeOnline(roomData) {
+  if (!globe) return;
+  const points = [], rings = [], arcs = [];
+
+  points.push({ lat: roomData.target.lat, lng: roomData.target.lng, color: '#ff4444', radius: 0.55 });
+  rings.push({ lat: roomData.target.lat, lng: roomData.target.lng, color: t => `rgba(255,68,68,${1-t})`, maxR: 4, speed: 1.2, period: 900 });
+
+  roomData.players.forEach((p, i) => {
+    const isActive = i === roomData.activePlayerIdx;
+    p.shots.forEach(s => arcs.push({
+      startLat: s.from.lat, startLng: s.from.lng,
+      endLat:   s.to.lat,   endLng:   s.to.lng,
+      color: s.penalty ? '#ff4444' : p.color, stroke: 2,
+    }));
+    if (!p.finished) {
+      const rgb = hexToRgb(p.color);
+      points.push({ lat: p.current.lat, lng: p.current.lng, color: p.color, radius: isActive ? 0.65 : 0.45 });
+      rings.push({ lat: p.current.lat, lng: p.current.lng, color: t => `rgba(${rgb},${1-t})`, maxR: isActive ? 4 : 2.5, speed: 1.2, period: 900 });
+    }
+  });
+
+  globe
+    .pointsData(points).pointLat(d => d.lat).pointLng(d => d.lng).pointColor(d => d.color).pointRadius(d => d.radius).pointAltitude(0.01)
+    .labelsData([])
+    .ringsData(rings).ringLat(d => d.lat).ringLng(d => d.lng).ringColor(d => d.color).ringMaxRadius(d => d.maxR).ringPropagationSpeed(d => d.speed).ringRepeatPeriod(d => d.period)
+    .arcsData(arcs).arcStartLat(d => d.startLat).arcStartLng(d => d.startLng).arcEndLat(d => d.endLat).arcEndLng(d => d.endLng).arcColor(d => d.color).arcStroke(d => d.stroke).arcDashLength(0.5).arcDashGap(0.2).arcDashAnimateTime(1500).arcAltitudeAutoScale(0.4);
+}
+
+function updateOnlinePlayersPanel(roomData) {
+  const myIdx = onlineGetMyIdx();
+  const panel = el('players-panel');
+  panel.style.display = 'block';
+  panel.innerHTML = roomData.players.map((p, i) => {
+    const isActive = i === roomData.activePlayerIdx;
+    const isMe     = i === myIdx;
+    const total    = p.strokes + p.penalties;
+    return `
+      <div class="mini-player${isActive ? ' active' : ''}${p.finished ? ' done' : ''}" style="--pc:${p.color}">
+        <span class="mini-icon">${p.finished ? '🏁' : isActive ? '▶' : '·'}</span>
+        <span class="mini-name">${isMe ? 'You' : p.name}</span>
+        <span class="mini-score">${total > 0 ? total + ' strk' : '—'}</span>
+      </div>`;
+  }).join('');
+}
+
+function updateOnlineIndicator(roomData, isMyTurn) {
+  const myIdx    = onlineGetMyIdx();
+  const otherIdx = myIdx === 0 ? 1 : 0;
+  const indicator = el('player-indicator');
+  indicator.style.display = 'flex';
+  if (isMyTurn) {
+    indicator.style.setProperty('--pc', roomData.players[myIdx]?.color || '#00ff88');
+    el('indicator-name').textContent = 'Your turn';
+    indicator.className = 'player-indicator';
+  } else {
+    const other = roomData.players[otherIdx];
+    indicator.style.setProperty('--pc', other?.color || '#ff79a8');
+    el('indicator-name').textContent = other ? `${other.name}'s turn…` : 'Waiting…';
+    indicator.className = 'player-indicator ai-turn';
+  }
+}
+
+function rebuildOnlineShotList(roomData, myIdx) {
+  const list   = el('shot-list');
+  const maxLen = Math.max(...roomData.players.map(p => p.shots.length), 0);
+  const rows   = [];
+
+  for (let i = 0; i < maxLen; i++) {
+    roomData.players.forEach((p, pi) => {
+      if (p.shots[i]) rows.push({ ...p.shots[i], pName: p.name, pColor: p.color, isMe: pi === myIdx });
+    });
+  }
+
+  if (!rows.length) {
+    list.innerHTML = '<div class="empty-state">No shots yet</div>';
+    return;
+  }
+  list.innerHTML = rows.map((s, i) => `
+    <div class="shot-item${s.penalty ? ' penalty' : ''}" style="--shot-color:${s.pColor}">
+      <span class="shot-num">${i + 1}</span>
+      <span class="shot-info">
+        <span class="shot-player" style="color:${s.pColor}">${s.isMe ? 'You' : s.pName}</span>
+        <strong>${s.from.name}</strong> → <strong>${s.to.name}</strong>
+        <small>${s.club} · <span class="dist-val" data-km="${s.distKm}">${fmtDist(s.distKm)}</span>${s.penalty ? ' · ⚠ use ' + s.idealClub : ''}</small>
+      </span>
+    </div>`).join('');
+}
+
+function showOnlineFinishScreen(roomData) {
+  const sorted  = [...roomData.players].sort((a, b) => (a.strokes + a.penalties) - (b.strokes + b.penalties));
+  const winner  = sorted[0];
+  const iWon    = winner.id === myPlayerId();
+  const medals  = ['🥇', '🥈'];
+
+  el('finish-medal').textContent = iWon ? '🏆' : '🎯';
+  el('finish-title').textContent = `${winner.name} Wins!`;
+
+  const rows = sorted.map((p, i) => {
+    const total  = p.strokes + p.penalties;
+    const rel    = total - roomData.par;
+    const relStr = rel > 0 ? `+${rel}` : `${rel}`;
+    return `
+      <div class="finish-row" style="--pc:${p.color}">
+        <span class="finish-rank-medal">${medals[i] || '·'}</span>
+        <span class="finish-pname">${p.name}${p.id === myPlayerId() ? ' (you)' : ''}</span>
+        <span class="finish-pscore">${total} strokes (${relStr})</span>
+      </div>`;
+  }).join('');
+
+  el('finish-details').innerHTML = `
+    <p>${roomData.startCity.name} → ${roomData.target.name} · Par ${roomData.par}</p>
+    <div class="finish-leaderboard">${rows}</div>`;
+
+  el('finish-signin-prompt').style.display = 'none';
+  el('finish-overlay').style.display = 'flex';
+}
+
 // ── Game start & setup ─────────────────────────────────────────────────────────
 
 function showSetup(panel) {
-  ['setup-cpu','setup-1v1','setup-battle'].forEach(id => {
+  ['setup-cpu','setup-1v1','setup-battle','setup-online-create','setup-online-join'].forEach(id => {
     el(id).style.display = id === panel ? 'flex' : 'none';
   });
 }
@@ -432,11 +687,39 @@ function startGame(mode, options = {}) {
   }
 }
 
-function shoot() {
+async function shoot() {
   if (aiThinking) return;
 
   const input = el('city-input').value.trim();
   if (!input) { setMessage('Type a destination city.', 'warn'); return; }
+
+  if (onlineMode) {
+    if (!onlineIsMyTurn()) return;
+    const result = game.shoot(selectedClub, input);
+    if (result.error) { setMessage(result.error, 'error'); return; }
+    const { shot } = result;
+    el('city-input').value = '';
+    setMessage('');
+    document.querySelectorAll('.club-btn').forEach(b => b.classList.remove('selected'));
+    selectedClub = null;
+    flyTo(shot.to, 1.8);
+    if (shot.overshootDest) {
+      setMessage(`Overshot → landed in ${shot.to.name} — +1 penalty.`, 'warn');
+    } else if (shot.penalty) {
+      setMessage(`Penalty! ${fmtDist(shot.distKm)} — that's a ${shot.idealClub}.`, 'warn');
+    } else {
+      setMessage(`Nice shot! ${fmtDist(shot.distKm)} — ${shot.club} was perfect.`, 'good');
+    }
+    if (result.playerFinished) setMessage(`You reached ${game.target.name}! Waiting for opponent…`, 'good');
+    disableInput(true);
+    try {
+      await onlinePushShot(shot);
+    } catch {
+      setMessage('Connection error — please try again.', 'error');
+      disableInput(false);
+    }
+    return;
+  }
 
   const result = game.shoot(selectedClub, input);
 
@@ -593,6 +876,78 @@ document.addEventListener('DOMContentLoaded', () => {
   el('btn-us-daily').addEventListener('click',  () => startGame('us-daily'));
   el('btn-us-random').addEventListener('click', () => startGame('us-random'));
 
+  // ── Online multiplayer ──
+  el('btn-create-room').addEventListener('click', () => {
+    showSetup('setup-online-create');
+    el('online-create-name').value = myDefaultName();
+  });
+  el('btn-join-room').addEventListener('click', () => {
+    showSetup('setup-online-join');
+    el('online-join-name').value = myDefaultName();
+    el('online-room-code').value = '';
+  });
+
+  document.querySelectorAll('.online-map-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedOnlineMap = btn.dataset.map;
+      document.querySelectorAll('.online-map-btn').forEach(b => b.classList.toggle('selected', b === btn));
+    });
+  });
+
+  el('btn-do-create').addEventListener('click', async () => {
+    const name = el('online-create-name').value.trim();
+    el('create-error').textContent = '';
+    if (!name) { el('create-error').textContent = 'Enter your name.'; return; }
+    const btn = el('btn-do-create');
+    btn.disabled = true; btn.textContent = 'Creating…';
+    try {
+      const roomId = await onlineCreateRoom(name, selectedOnlineMap);
+      enterLobby(roomId);
+    } catch (err) {
+      el('create-error').textContent = err.message || 'Failed to create room.';
+      btn.disabled = false; btn.textContent = 'Create Room';
+    }
+  });
+
+  el('btn-do-join').addEventListener('click', async () => {
+    const name = el('online-join-name').value.trim();
+    const code = el('online-room-code').value.trim().toUpperCase();
+    el('join-error').textContent = '';
+    if (!name) { el('join-error').textContent = 'Enter your name.'; return; }
+    if (code.length !== 4) { el('join-error').textContent = 'Enter the 4-letter room code.'; return; }
+    const btn = el('btn-do-join');
+    btn.disabled = true; btn.textContent = 'Joining…';
+    try {
+      const roomId = await onlineJoinRoom(code, name);
+      enterLobby(roomId);
+    } catch (err) {
+      el('join-error').textContent = err.message || 'Failed to join room.';
+      btn.disabled = false; btn.textContent = 'Join Room';
+    }
+  });
+
+  el('btn-start-online').addEventListener('click', async () => {
+    const roomId = onlineGetRoomId();
+    if (roomId) await onlineStartGame(roomId);
+  });
+
+  el('btn-copy-code').addEventListener('click', () => {
+    const code = el('lobby-code').textContent;
+    navigator.clipboard?.writeText(code).then(() => {
+      el('btn-copy-code').textContent = 'Copied!';
+      setTimeout(() => el('btn-copy-code').textContent = 'Copy', 2000);
+    });
+  });
+
+  el('btn-leave-lobby').addEventListener('click', () => {
+    onlineStopListening();
+    onlineMode = false; onlinePrevData = null;
+    el('online-lobby').style.display = 'none';
+    el('start-panel').style.display  = 'flex';
+    el('btn-do-create').disabled = false; el('btn-do-create').textContent = 'Create Room';
+    el('btn-do-join').disabled   = false; el('btn-do-join').textContent   = 'Join Room';
+  });
+
   // ── vs CPU setup ──
   el('btn-vs-cpu').addEventListener('click', () => showSetup('setup-cpu'));
 
@@ -648,16 +1003,25 @@ document.addEventListener('DOMContentLoaded', () => {
   el('btn-new-game').addEventListener('click', resetToMenu);
   el('btn-play-again').addEventListener('click', () => {
     el('finish-overlay').style.display = 'none';
+    if (onlineMode) { resetToMenu(); return; }
     startGame(game.mode, lastGameOptions);
   });
   el('btn-new-from-finish').addEventListener('click', resetToMenu);
 });
 
 function resetToMenu() {
-  el('start-panel').style.display = 'flex';
-  el('game-panel').style.display  = 'none';
+  if (onlineMode) {
+    onlineStopListening();
+    onlineMode     = false;
+    onlinePrevData = null;
+  }
+  el('start-panel').style.display   = 'flex';
+  el('game-panel').style.display    = 'none';
+  el('online-lobby').style.display  = 'none';
   el('finish-overlay').style.display = 'none';
-  ['setup-cpu','setup-1v1','setup-battle'].forEach(id => el(id).style.display = 'none');
+  ['setup-cpu','setup-1v1','setup-battle','setup-online-create','setup-online-join'].forEach(id => {
+    if (el(id)) el(id).style.display = 'none';
+  });
   game.reset();
   aiThinking = false;
   globe.pointsData([]).labelsData([]).arcsData([]).ringsData([]);
