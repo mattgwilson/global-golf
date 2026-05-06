@@ -104,7 +104,7 @@ function initGlobe() {
   globe.controls().autoRotateSpeed = 0;
   globe.controls().enableZoom      = true;
 
-  fetch('https://raw.githubusercontent.com/vasturiano/globe.gl/master/example/country-borders/countries.geojson')
+  fetch('countries.geojson')
     .then(r => r.json())
     .then(({ features }) => {
       globe
