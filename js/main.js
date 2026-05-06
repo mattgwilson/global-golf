@@ -216,6 +216,78 @@ function buildClubButtons() {
   });
 }
 
+// ── City autocomplete ──────────────────────────────────────────────────────────
+
+let suggestionHighlight = -1;
+
+function normQ(str) {
+  return str.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9\s]/g, '').trim();
+}
+
+function getSuggestions(query) {
+  if (!query) return [];
+  const q    = normQ(query);
+  if (!q)    return [];
+  const list = game.activeCapitals || CAPITALS;
+  const seen = new Set();
+  const out  = [];
+
+  for (const c of list) {
+    if (normQ(c.name).startsWith(q)) { out.push(c); seen.add(c.name); }
+  }
+  for (const c of list) {
+    if (!seen.has(c.name) && normQ(c.name).includes(q)) { out.push(c); seen.add(c.name); }
+  }
+  for (const c of list) {
+    if (!seen.has(c.name) && normQ(c.country).startsWith(q)) { out.push(c); seen.add(c.name); }
+  }
+  return out.slice(0, 8);
+}
+
+function renderSuggestions(items) {
+  const box = el('city-suggestions');
+  suggestionHighlight = -1;
+  if (!items.length) { box.classList.remove('open'); box.innerHTML = ''; return; }
+  box.innerHTML = items.map((c, i) =>
+    `<div class="suggestion-item" data-idx="${i}">
+      <span class="suggestion-city">${c.name}</span>
+      <span class="suggestion-country">${c.country}</span>
+    </div>`
+  ).join('');
+  box.classList.add('open');
+  box.querySelectorAll('.suggestion-item').forEach((row, i) => {
+    row.addEventListener('mousedown', e => {
+      e.preventDefault(); // prevent blur before click
+      pickSuggestion(items[i]);
+    });
+  });
+}
+
+function hideSuggestions() {
+  const box = el('city-suggestions');
+  box.classList.remove('open');
+  box.innerHTML = '';
+  suggestionHighlight = -1;
+}
+
+function pickSuggestion(capital) {
+  el('city-input').value = capital.name;
+  hideSuggestions();
+  el('city-input').focus();
+}
+
+function moveSuggestionHighlight(dir) {
+  const box   = el('city-suggestions');
+  const items = box.querySelectorAll('.suggestion-item');
+  if (!items.length) return;
+  items[suggestionHighlight]?.classList.remove('highlighted');
+  suggestionHighlight = Math.max(-1, Math.min(items.length - 1, suggestionHighlight + dir));
+  if (suggestionHighlight >= 0) {
+    items[suggestionHighlight].classList.add('highlighted');
+    el('city-input').value = items[suggestionHighlight].querySelector('.suggestion-city').textContent;
+  }
+}
+
 function selectClub(name) {
   selectedClub = name;
   game.selectedClub = name;
@@ -473,6 +545,7 @@ function initOnlineGame(roomData) {
   el('city-input').placeholder = isUS ? 'Type a state capital…' : 'Type a capital city…';
   el('shot-list').innerHTML    = '<div class="empty-state">No shots yet</div>';
   el('finish-overlay').style.display = 'none';
+  hideSuggestions();
   setMessage('');
   document.querySelectorAll('.club-btn').forEach(b => b.classList.remove('selected'));
 
@@ -998,7 +1071,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── In-game ──
   el('btn-shoot').addEventListener('click', shoot);
-  el('city-input').addEventListener('keydown', e => { if (e.key === 'Enter') shoot(); });
+  el('city-input').addEventListener('input', e => {
+    renderSuggestions(getSuggestions(e.target.value.trim()));
+  });
+  el('city-input').addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveSuggestionHighlight(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); moveSuggestionHighlight(-1); }
+    else if (e.key === 'Escape') hideSuggestions();
+    else if (e.key === 'Enter') { hideSuggestions(); shoot(); }
+  });
+  el('city-input').addEventListener('blur', () => setTimeout(hideSuggestions, 150));
 
   el('btn-new-game').addEventListener('click', resetToMenu);
   el('btn-play-again').addEventListener('click', () => {

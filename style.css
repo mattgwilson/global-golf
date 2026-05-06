@@ -674,8 +674,13 @@ html, body {
   padding: 8px 10px;
 }
 
-#city-input {
+.input-wrapper {
   flex: 1;
+  position: relative;
+}
+
+#city-input {
+  width: 100%;
   padding: 10px 14px;
   background: var(--surface2);
   border: 1.5px solid var(--border);
@@ -693,6 +698,51 @@ html, body {
 #city-input:focus {
   border-color: #a78bfa;
   box-shadow: 0 0 0 3px rgba(167,139,250,0.2);
+}
+
+.city-suggestions {
+  display: none;
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background: var(--surface2);
+  border: 1.5px solid #a78bfa;
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.city-suggestions.open { display: block; }
+
+.suggestion-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+  gap: 8px;
+}
+
+.suggestion-item:hover,
+.suggestion-item.highlighted {
+  background: rgba(167,139,250,0.18);
+}
+
+.suggestion-city {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.suggestion-country {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 #btn-shoot {
