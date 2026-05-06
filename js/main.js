@@ -367,6 +367,28 @@ function showFinishScreen() {
     `;
   }
 
+  // Save daily result and show streak prompt if not signed in
+  const isDaily = game.mode === 'daily' || game.mode === 'us-daily';
+  const prompt  = el('finish-signin-prompt');
+  if (isDaily) {
+    const user = window.currentUser && window.currentUser();
+    if (user) {
+      saveDailyResult(user.uid, game.mode, {
+        strokes:   game.strokes,
+        penalties: game.penalties,
+        par:       game.par,
+        score:     game.score,
+        startCity: game.shots[0]?.from.name || '',
+        targetCity: game.target.name,
+      });
+      if (prompt) prompt.style.display = 'none';
+    } else {
+      if (prompt) prompt.style.display = 'block';
+    }
+  } else {
+    if (prompt) prompt.style.display = 'none';
+  }
+
   overlay.style.display = 'flex';
 }
 
