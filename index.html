@@ -53,6 +53,11 @@
             <span class="mode-label">Random</span>
             <span class="mode-sub">Fresh random challenge</span>
           </button>
+          <button id="btn-vs-cpu" class="mode-btn">
+            <span class="mode-icon">🤖</span>
+            <span class="mode-label">vs CPU</span>
+            <span class="mode-sub">Challenge the computer</span>
+          </button>
         </div>
 
         <div class="mode-section-label">US State Capitals</div>
@@ -75,11 +80,6 @@
             <span class="mode-icon">👥</span>
             <span class="mode-label">1v1</span>
             <span class="mode-sub">Pass &amp; play</span>
-          </button>
-          <button id="btn-vs-cpu" class="mode-btn">
-            <span class="mode-icon">🤖</span>
-            <span class="mode-label">vs CPU</span>
-            <span class="mode-sub">Challenge the computer</span>
           </button>
           <button id="btn-battle" class="mode-btn">
             <span class="mode-icon">⚔️</span>
@@ -188,6 +188,8 @@
         <button id="btn-new-game">← New Game</button>
       </div><!-- /game-panel -->
 
+      <button id="btn-howto" class="howto-fab" title="How to play">?</button>
+
     </div><!-- /sidebar -->
   </div><!-- /app -->
 
@@ -204,6 +206,70 @@
         <button id="btn-play-again">Play Again</button>
         <button id="btn-new-from-finish">New Game</button>
       </div>
+    </div>
+  </div>
+
+  <!-- How to play overlay -->
+  <div id="howto-overlay" class="modal-overlay" style="display:none">
+    <div class="howto-card">
+      <button id="howto-close" class="modal-close">&times;</button>
+
+      <div class="howto-header">
+        <div class="howto-logo">⛳ Global Golf</div>
+        <div class="howto-tagline">Navigate the world, capital by capital</div>
+      </div>
+
+      <div class="howto-section">
+        <div class="howto-section-title">🎯 The Goal</div>
+        <p>Travel from your starting capital city to the target — the <span class="howto-red">red dot</span> on the globe — in as few shots as possible.</p>
+      </div>
+
+      <div class="howto-section">
+        <div class="howto-section-title">🏌️ Taking a Shot</div>
+        <div class="howto-steps">
+          <div class="howto-step"><span class="step-num">1</span>Pick a <strong>club</strong> based on how far you want to travel</div>
+          <div class="howto-step"><span class="step-num">2</span>Type a <strong>capital city</strong> as your next stop</div>
+          <div class="howto-step"><span class="step-num">3</span>Hit <strong>Shoot</strong> — match the club to the distance to avoid a penalty</div>
+        </div>
+      </div>
+
+      <div class="howto-section">
+        <div class="howto-section-title">🏒 Clubs &amp; Distance</div>
+        <p>Each club has an ideal range. Using the wrong club earns a <strong>penalty stroke</strong>.</p>
+        <div class="howto-club-strip">
+          <div class="howto-club-item"><span>Putter</span><span>800 km</span></div>
+          <div class="howto-club-item"><span>9-Iron</span><span>1,600 km</span></div>
+          <div class="howto-club-dots">· · ·</div>
+          <div class="howto-club-item"><span>Driver</span><span>8,000 km</span></div>
+        </div>
+      </div>
+
+      <div class="howto-section">
+        <div class="howto-section-title">📊 Scoring</div>
+        <div class="howto-score-row">
+          <div class="howto-score-item"><span class="howto-medal">🦅</span><span>Eagle</span><span class="howto-rel under">−2</span></div>
+          <div class="howto-score-item"><span class="howto-medal">🐦</span><span>Birdie</span><span class="howto-rel under">−1</span></div>
+          <div class="howto-score-item"><span class="howto-medal">⛳</span><span>Par</span><span class="howto-rel">0</span></div>
+          <div class="howto-score-item"><span class="howto-medal">😅</span><span>Bogey</span><span class="howto-rel over">+1</span></div>
+        </div>
+      </div>
+
+      <div class="howto-section">
+        <div class="howto-section-title">🎮 Game Modes</div>
+        <div class="howto-modes">
+          <div class="howto-mode-row"><span class="howto-mode-icon">📅</span><span><strong>Daily</strong> — same world puzzle for everyone, resets at midnight</span></div>
+          <div class="howto-mode-row"><span class="howto-mode-icon">🇺🇸</span><span><strong>US Mode</strong> — 50 state capitals with scaled distances</span></div>
+          <div class="howto-mode-row"><span class="howto-mode-icon">🤖</span><span><strong>vs CPU</strong> — Easy, Medium, or Hard AI opponent</span></div>
+          <div class="howto-mode-row"><span class="howto-mode-icon">👥</span><span><strong>Multiplayer</strong> — 1v1 or Battle Royale, pass and play</span></div>
+        </div>
+      </div>
+
+      <div class="howto-auth">
+        <p>Sign in to track your daily streaks and stats across devices</p>
+        <button id="howto-signin-btn" class="auth-submit">Sign In / Create Account</button>
+      </div>
+
+      <button id="howto-start" class="howto-start-btn">Let's Play!</button>
     </div>
   </div>
 

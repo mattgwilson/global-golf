@@ -557,6 +557,22 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(updateScaleBar, 200); // initial draw after globe settles
   });
 
+  // ── How to play ──
+  function openHowto() { el('howto-overlay').style.display = 'flex'; }
+  function closeHowto() {
+    el('howto-overlay').style.display = 'none';
+    localStorage.setItem('golf-seen-howto', '1');
+  }
+
+  el('howto-close').addEventListener('click', closeHowto);
+  el('howto-start').addEventListener('click', closeHowto);
+  el('howto-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeHowto(); });
+  el('howto-signin-btn').addEventListener('click', () => { closeHowto(); openAuthModal(); });
+  el('btn-howto').addEventListener('click', openHowto);
+
+  // Show on first ever visit
+  if (!localStorage.getItem('golf-seen-howto')) openHowto();
+
   // ── Unit toggle ──
   function applyUnitToggle() {
     el('btn-km').classList.toggle('active', !useImperial);
