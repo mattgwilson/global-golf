@@ -1,6 +1,12 @@
 [build]
   publish = "."
 
+[[redirects]]
+  from = "http://globalgolf.online/*"
+  to   = "https://globalgolf.online/:splat"
+  status = 301
+  force  = true
+
 # Security headers for all routes
 [[headers]]
   for = "/*"
@@ -8,6 +14,7 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
 
 # Long-term cache for versioned assets (JS and CSS)
 [[headers]]
