@@ -569,21 +569,25 @@ function handleOnlineUpdate(roomData) {
   game.players[0].penalties = me.penalties;
   game.players[0].finished  = me.finished;
 
-  // Detect new opponent shot and animate it
-  const prevLen = onlinePrevData?.players?.[otherIdx]?.shots?.length ?? 0;
-  const currLen = other?.shots?.length ?? 0;
-  if (other && currLen > prevLen) {
-    const s = other.shots[other.shots.length - 1];
-    flyTo(s.to, 1.8);
-    if (s.overshootDest) {
-      setMessage(`${other.name}: Overshot → landed in ${s.to.name} — +1 penalty.`, 'warn');
-    } else if (s.penalty) {
-      setMessage(`${other.name}: Penalty! ${fmtDist(s.distKm)} — ${s.idealClub} needed.`, 'warn');
-    } else {
-      setMessage(`${other.name}: ${fmtDist(s.distKm)} with ${s.club}.`, 'info');
-    }
-    if (s.to.name === roomData.target.name) {
-      setMessage(`${other.name} reached ${roomData.target.name}!`, 'info');
+  // Reveal opponent shots only after I've matched their stroke count.
+  // Newly revealed = shots with strokeNumber <= my current strokes that weren't visible before.
+  if (other) {
+    const prevMyStrokes  = onlinePrevData?.players?.[myIdx]?.strokes ?? 0;
+    const prevOtherShots = onlinePrevData?.players?.[otherIdx]?.shots ?? [];
+    const wasVisible     = new Set(prevOtherShots.filter(s => s.strokeNumber <= prevMyStrokes).map(s => s.strokeNumber));
+    const newlyVisible   = other.shots.filter(s => s.strokeNumber <= me.strokes && !wasVisible.has(s.strokeNumber));
+    if (newlyVisible.length) {
+      const s = newlyVisible[newlyVisible.length - 1];
+      if (s.overshootDest) {
+        setMessage(`${other.name}: Overshot → landed in ${s.to.name} — +1 penalty.`, 'warn');
+      } else if (s.penalty) {
+        setMessage(`${other.name}: Penalty! ${fmtDist(s.distKm)} — ${s.idealClub} needed.`, 'warn');
+      } else {
+        setMessage(`${other.name}: ${fmtDist(s.distKm)} with ${s.club}.`, 'info');
+      }
+      if (s.to.name === roomData.target.name) {
+        setMessage(`${other.name} reached ${roomData.target.name}!`, 'info');
+      }
     }
   }
 
@@ -592,9 +596,8 @@ function handleOnlineUpdate(roomData) {
   updateScoreboard();
   updateOnlinePlayersPanel(roomData);
 
-  const isMyTurn = onlineIsMyTurn();
-  updateOnlineIndicator(roomData, isMyTurn);
-  disableInput(!isMyTurn || roomData.status === 'finished');
+  updateOnlineIndicator(roomData);
+  disableInput(me.finished || roomData.status === 'finished');
 
   if (roomData.status === 'finished') {
     setTimeout(() => showOnlineFinishScreen(roomData), 800);
@@ -605,30 +608,43 @@ function handleOnlineUpdate(roomData) {
 
 function updateGlobeOnline(roomData) {
   if (!globe) return;
-  const points = [], rings = [], arcs = [];
+  const points = [], rings = [], arcs = [], labels = [];
+  const myIdx     = onlineGetMyIdx();
+  const myStrokes = myIdx >= 0 ? (roomData.players[myIdx]?.strokes ?? 0) : 0;
 
   points.push({ lat: roomData.target.lat, lng: roomData.target.lng, color: '#ff4444', radius: 0.55 });
   rings.push({ lat: roomData.target.lat, lng: roomData.target.lng, color: t => `rgba(255,68,68,${1-t})`, maxR: 4, speed: 1.2, period: 900 });
 
   roomData.players.forEach((p, i) => {
-    const isActive = i === roomData.activePlayerIdx;
-    p.shots.forEach(s => arcs.push({
+    const isMe = i === myIdx;
+    // Opponents' shots are hidden until I've matched their stroke number
+    const visibleShots = isMe ? p.shots : p.shots.filter(s => s.strokeNumber <= myStrokes);
+
+    visibleShots.forEach(s => arcs.push({
       startLat: s.from.lat, startLng: s.from.lng,
       endLat:   s.to.lat,   endLng:   s.to.lng,
-      color: s.penalty ? '#ff4444' : p.color, stroke: 2,
+      color:   p.color,
+      stroke:  s.penalty ? 1.2 : 2.5,
+      dashLen: s.penalty ? 0.15 : 0.5,
+      dashGap: s.penalty ? 0.35 : 0.2,
     }));
+
     if (!p.finished) {
+      // For opponent, show position at last revealed shot; fall back to start city
+      const lastRevealed = visibleShots[visibleShots.length - 1];
+      const displayPos   = isMe ? p.current : (lastRevealed ? lastRevealed.to : roomData.startCity);
       const rgb = hexToRgb(p.color);
-      points.push({ lat: p.current.lat, lng: p.current.lng, color: p.color, radius: isActive ? 0.65 : 0.45 });
-      rings.push({ lat: p.current.lat, lng: p.current.lng, color: t => `rgba(${rgb},${1-t})`, maxR: isActive ? 4 : 2.5, speed: 1.2, period: 900 });
+      points.push({ lat: displayPos.lat, lng: displayPos.lng, color: p.color, radius: 0.45 });
+      rings.push({ lat: displayPos.lat, lng: displayPos.lng, color: t => `rgba(${rgb},${1-t})`, maxR: 2.5, speed: 1.2, period: 900 });
+      labels.push({ lat: displayPos.lat, lng: displayPos.lng, text: isMe ? 'You' : p.name, color: p.color });
     }
   });
 
   globe
     .pointsData(points).pointLat(d => d.lat).pointLng(d => d.lng).pointColor(d => d.color).pointRadius(d => d.radius).pointAltitude(0.01)
-    .labelsData([])
+    .labelsData(labels).labelLat(d => d.lat).labelLng(d => d.lng).labelText(d => d.text).labelColor(d => d.color).labelSize(0.7).labelDotRadius(0).labelAltitude(0.02).labelResolution(3)
     .ringsData(rings).ringLat(d => d.lat).ringLng(d => d.lng).ringColor(d => d.color).ringMaxRadius(d => d.maxR).ringPropagationSpeed(d => d.speed).ringRepeatPeriod(d => d.period)
-    .arcsData(arcs).arcStartLat(d => d.startLat).arcStartLng(d => d.startLng).arcEndLat(d => d.endLat).arcEndLng(d => d.endLng).arcColor(d => d.color).arcStroke(d => d.stroke).arcDashLength(0.5).arcDashGap(0.2).arcDashAnimateTime(1500).arcAltitudeAutoScale(0.4);
+    .arcsData(arcs).arcStartLat(d => d.startLat).arcStartLng(d => d.startLng).arcEndLat(d => d.endLat).arcEndLng(d => d.endLng).arcColor(d => d.color).arcStroke(d => d.stroke).arcDashLength(d => d.dashLen).arcDashGap(d => d.dashGap).arcDashAnimateTime(1500).arcAltitudeAutoScale(0.4);
 }
 
 function updateOnlinePlayersPanel(roomData) {
@@ -636,43 +652,47 @@ function updateOnlinePlayersPanel(roomData) {
   const panel = el('players-panel');
   panel.style.display = 'block';
   panel.innerHTML = roomData.players.map((p, i) => {
-    const isActive = i === roomData.activePlayerIdx;
-    const isMe     = i === myIdx;
-    const total    = p.strokes + p.penalties;
+    const isMe  = i === myIdx;
+    const total = p.strokes + p.penalties;
     return `
-      <div class="mini-player${isActive ? ' active' : ''}${p.finished ? ' done' : ''}" style="--pc:${p.color}">
-        <span class="mini-icon">${p.finished ? '🏁' : isActive ? '▶' : '·'}</span>
+      <div class="mini-player${p.finished ? ' done' : ''}" style="--pc:${p.color}">
+        <span class="mini-icon">${p.finished ? '🏁' : '·'}</span>
         <span class="mini-name">${isMe ? 'You' : p.name}</span>
         <span class="mini-score">${total > 0 ? total + ' strk' : '—'}</span>
       </div>`;
   }).join('');
 }
 
-function updateOnlineIndicator(roomData, isMyTurn) {
+function updateOnlineIndicator(roomData) {
   const myIdx    = onlineGetMyIdx();
   const otherIdx = myIdx === 0 ? 1 : 0;
+  const me       = roomData.players[myIdx];
+  const other    = roomData.players[otherIdx];
   const indicator = el('player-indicator');
   indicator.style.display = 'flex';
-  if (isMyTurn) {
-    indicator.style.setProperty('--pc', roomData.players[myIdx]?.color || '#00ff88');
-    el('indicator-name').textContent = 'Your turn';
-    indicator.className = 'player-indicator';
-  } else {
-    const other = roomData.players[otherIdx];
+  if (me?.finished) {
     indicator.style.setProperty('--pc', other?.color || '#ff79a8');
-    el('indicator-name').textContent = other ? `${other.name}'s turn…` : 'Waiting…';
+    el('indicator-name').textContent = other ? `Waiting for ${other.name}…` : 'Waiting…';
     indicator.className = 'player-indicator ai-turn';
+  } else {
+    indicator.style.setProperty('--pc', me?.color || '#00ff88');
+    el('indicator-name').textContent = 'Your shot';
+    indicator.className = 'player-indicator';
   }
 }
 
 function rebuildOnlineShotList(roomData, myIdx) {
-  const list   = el('shot-list');
-  const maxLen = Math.max(...roomData.players.map(p => p.shots.length), 0);
-  const rows   = [];
+  const list      = el('shot-list');
+  const myStrokes = roomData.players[myIdx]?.strokes ?? 0;
+  const maxLen    = Math.max(...roomData.players.map(p => p.shots.length), 0);
+  const rows      = [];
 
   for (let i = 0; i < maxLen; i++) {
     roomData.players.forEach((p, pi) => {
-      if (p.shots[i]) rows.push({ ...p.shots[i], pName: p.name, pColor: p.color, isMe: pi === myIdx });
+      const shot = p.shots[i];
+      if (!shot) return;
+      if (pi !== myIdx && shot.strokeNumber > myStrokes) return;
+      rows.push({ ...shot, pName: p.name, pColor: p.color, isMe: pi === myIdx });
     });
   }
 

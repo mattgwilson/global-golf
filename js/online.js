@@ -133,44 +133,50 @@ async function onlineStartGame(roomId) {
 // ── Push a shot ────────────────────────────────────────────────────────────────
 
 async function onlinePushShot(shot) {
-  if (!_onlineRoomId || !_lastRoomData || _onlineMyIdx < 0) return;
+  if (!_onlineRoomId || _onlineMyIdx < 0) return;
 
-  const data     = _lastRoomData;
-  const myIdx    = _onlineMyIdx;
-  const me       = data.players[myIdx];
-  const otherIdx = myIdx === 0 ? 1 : 0;
-  const finished = shot.to.name === data.target.name;
+  const myIdx = _onlineMyIdx;
+  const ref   = db.collection('rooms').doc(_onlineRoomId);
 
-  const updatedMe = {
-    ...me,
-    current:   slim(shot.to),
-    strokes:   me.strokes + 1,
-    penalties: me.penalties + (shot.penalty ? 1 : 0),
-    shots: [...me.shots, {
-      from:         { name: shot.from.name, lat: shot.from.lat, lng: shot.from.lng },
-      to:           { name: shot.to.name,   lat: shot.to.lat,   lng: shot.to.lng },
-      club:         shot.club,
-      clubColor:    shot.clubColor || '#a78bfa',
-      distKm:       shot.distKm,
-      penalty:      !!shot.penalty,
-      idealClub:    shot.idealClub || null,
-      overshootDest: shot.overshootDest ? { name: shot.overshootDest.name } : null,
-      strokeNumber: me.strokes + 1,
-    }],
-    finished,
-  };
+  // Transaction prevents simultaneous-shot race conditions when both players
+  // shoot at nearly the same time (each would otherwise overwrite the other's update).
+  await db.runTransaction(async t => {
+    const snap = await t.get(ref);
+    if (!snap.exists) return;
+    const data = snap.data();
 
-  const updatedPlayers = [...data.players];
-  updatedPlayers[myIdx] = updatedMe;
+    const me       = data.players[myIdx];
+    const otherIdx = myIdx === 0 ? 1 : 0;
+    const finished = shot.to.name === data.target.name;
 
-  const otherDone = data.players[otherIdx]?.finished ?? false;
-  const gameOver  = finished && (otherDone || data.players.length < 2);
-  const nextIdx   = gameOver ? myIdx : otherIdx;
+    const updatedMe = {
+      ...me,
+      current:   slim(shot.to),
+      strokes:   me.strokes + 1,
+      penalties: me.penalties + (shot.penalty ? 1 : 0),
+      shots: [...me.shots, {
+        from:          { name: shot.from.name, lat: shot.from.lat, lng: shot.from.lng },
+        to:            { name: shot.to.name,   lat: shot.to.lat,   lng: shot.to.lng },
+        club:          shot.club,
+        clubColor:     shot.clubColor || '#a78bfa',
+        distKm:        shot.distKm,
+        penalty:       !!shot.penalty,
+        idealClub:     shot.idealClub || null,
+        overshootDest: shot.overshootDest ? { name: shot.overshootDest.name } : null,
+        strokeNumber:  me.strokes + 1,
+      }],
+      finished,
+    };
 
-  await db.collection('rooms').doc(_onlineRoomId).update({
-    players:         updatedPlayers,
-    activePlayerIdx: nextIdx,
-    status:          gameOver ? 'finished' : 'playing',
+    const updatedPlayers    = [...data.players];
+    updatedPlayers[myIdx]   = updatedMe;
+    const otherDone = data.players[otherIdx]?.finished ?? false;
+    const gameOver  = finished && (otherDone || data.players.length < 2);
+
+    t.update(ref, {
+      players: updatedPlayers,
+      status:  gameOver ? 'finished' : 'playing',
+    });
   });
 }
 
@@ -196,7 +202,8 @@ function onlineStopListening() {
 
 function onlineIsMyTurn() {
   if (!_lastRoomData || _onlineMyIdx < 0) return false;
-  return _lastRoomData.activePlayerIdx === _onlineMyIdx;
+  const me = _lastRoomData.players[_onlineMyIdx];
+  return _lastRoomData.status === 'playing' && !me?.finished;
 }
 
 function onlineGetMyIdx()    { return _onlineMyIdx; }
