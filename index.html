@@ -112,6 +112,23 @@
         <div id="setup-online-create" class="setup-panel" style="display:none">
           <div class="setup-title">Create Online Game</div>
           <input id="online-create-name" class="setup-input" type="text" placeholder="Your name" maxlength="20">
+          <div class="course-setup-row">
+            <span class="course-setup-label">Format</span>
+            <div class="course-opt-btns" id="online-format-btns">
+              <button class="course-opt-btn selected" data-format="single">Single</button>
+              <button class="course-opt-btn" data-format="course">Course</button>
+            </div>
+          </div>
+          <div id="online-course-opts" style="display:none">
+            <div class="course-setup-row">
+              <span class="course-setup-label">Holes</span>
+              <div class="course-opt-btns" id="online-holes-btns">
+                <button class="course-opt-btn selected" data-holes="3">3</button>
+                <button class="course-opt-btn" data-holes="9">9</button>
+                <button class="course-opt-btn" data-holes="18">18</button>
+              </div>
+            </div>
+          </div>
           <div class="diff-row">
             <button class="diff-btn online-map-btn selected" data-map="random">🌍 World</button>
             <button class="diff-btn online-map-btn" data-map="us-random">🇺🇸 US States</button>
@@ -512,7 +529,7 @@
   <script src="js/firebase-init.js?v=2"></script>
   <script src="js/stats.js?v=2"></script>
   <script src="js/auth.js?v=2"></script>
-  <script src="js/online.js?v=4"></script>
-  <script src="js/main.js?v=12"></script>
+  <script src="js/online.js?v=5"></script>
+  <script src="js/main.js?v=13"></script>
 </body>
 </html>

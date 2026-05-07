@@ -5,9 +5,11 @@ let aiThinking   = false;
 let useImperial  = localStorage.getItem('golf-unit') === 'mi';
 
 // Online multiplayer state
-let onlineMode        = false;
-let onlinePrevData    = null;
-let selectedOnlineMap = 'random';
+let onlineMode          = false;
+let onlinePrevData      = null;
+let selectedOnlineMap   = 'random';
+let selectedOnlineFormat = 'single';
+let selectedOnlineHoles  = 3;
 
 // Course play state
 let courseLastOptions = null;
@@ -663,10 +665,11 @@ function handleLobbyUpdate(roomData) {
 }
 
 function initOnlineGame(roomData) {
-  const myIdx = onlineGetMyIdx();
+  const myIdx  = onlineGetMyIdx();
   if (myIdx < 0) return;
-  const me   = roomData.players[myIdx];
-  const isUS = roomData.mode === 'us-random';
+  const me     = roomData.players[myIdx];
+  const isUS   = roomData.mode === 'us-random';
+  const isCourse = roomData.gameType === 'course';
 
   game.reset();
   game.mode           = roomData.mode;
@@ -683,17 +686,26 @@ function initOnlineGame(roomData) {
   }];
   game.activePlayerIdx = 0;
 
+  if (isCourse) {
+    game.numHoles       = roomData.numHoles;
+    game.courseHoles    = roomData.courseHoles;
+    game.currentHoleIdx = roomData.currentHoleIdx;
+  }
+
   aiThinking   = false;
   selectedClub = null;
   el('city-input').value       = '';
   el('city-input').placeholder = isUS ? 'Type a state capital…' : 'Type a capital city…';
   el('shot-list').innerHTML    = '<div class="empty-state">No shots yet</div>';
-  el('finish-overlay').style.display = 'none';
+  el('finish-overlay').style.display    = 'none';
+  el('hole-scorecard').style.display    = 'none';
+  el('course-results').style.display    = 'none';
   hideSuggestions();
   setMessage('');
   document.querySelectorAll('.club-btn').forEach(b => b.classList.remove('selected'));
 
   buildClubButtons();
+  updateOnlineHoleHeader(roomData);
   el('online-lobby').style.display = 'none';
   el('start-panel').style.display  = 'none';
   el('game-panel').style.display   = 'flex';
@@ -707,6 +719,24 @@ function handleOnlineUpdate(roomData) {
   const otherIdx = myIdx === 0 ? 1 : 0;
   const other    = roomData.players[otherIdx];
 
+  const isCourse    = roomData.gameType === 'course';
+  const prevStatus  = onlinePrevData?.status;
+  const isHoleComplete = roomData.status === 'hole-complete';
+  const isFinished     = roomData.status === 'finished';
+
+  // Detect hole advancement: hole index changed and game is back to playing
+  const prevHoleIdx = onlinePrevData?.currentHoleIdx ?? 0;
+  if (isCourse && roomData.currentHoleIdx !== prevHoleIdx && roomData.status === 'playing') {
+    el('hole-scorecard').style.display = 'none';
+    el('shot-list').innerHTML = '<div class="empty-state">No shots yet</div>';
+    setMessage('');
+    game.target         = roomData.target;
+    game.par            = roomData.par;
+    game.currentHoleIdx = roomData.currentHoleIdx;
+    flyTo(roomData.courseHoles[roomData.currentHoleIdx].startCity, 2.0);
+    disableInput(false);
+  }
+
   // Sync local game player from Firestore
   game.players[0].current   = me.current;
   game.players[0].strokes   = me.strokes;
@@ -714,7 +744,6 @@ function handleOnlineUpdate(roomData) {
   game.players[0].finished  = me.finished;
 
   // Reveal opponent shots only after I've matched their stroke count.
-  // Newly revealed = shots with strokeNumber <= my current strokes that weren't visible before.
   if (other) {
     const prevMyStrokes  = onlinePrevData?.players?.[myIdx]?.strokes ?? 0;
     const prevOtherShots = onlinePrevData?.players?.[otherIdx]?.shots ?? [];
@@ -741,11 +770,15 @@ function handleOnlineUpdate(roomData) {
   updateGlobeOnline(roomData);
   updateScoreboard();
   updateOnlinePlayersPanel(roomData);
-
   updateOnlineIndicator(roomData);
-  disableInput(me.finished || roomData.status === 'finished');
+  if (isCourse) updateOnlineHoleHeader(roomData);
 
-  if (roomData.status === 'finished') {
+  disableInput(me.finished || isHoleComplete || isFinished);
+
+  // Show scorecard on hole-complete or finished (course only) — only once per status transition
+  if (isCourse && (isHoleComplete || isFinished) && prevStatus !== roomData.status) {
+    setTimeout(() => showOnlineHoleScorecard(roomData), 600);
+  } else if (!isCourse && isFinished && prevStatus !== 'finished') {
     setTimeout(() => showOnlineFinishScreen(roomData), 800);
   }
 
@@ -884,6 +917,116 @@ function showOnlineFinishScreen(roomData) {
 
   el('finish-signin-prompt').style.display = 'none';
   el('finish-overlay').style.display = 'flex';
+}
+
+function updateOnlineHoleHeader(roomData) {
+  if (roomData.gameType !== 'course') {
+    el('hole-header').style.display = 'none';
+    return;
+  }
+  el('hole-header').style.display = 'flex';
+  el('hole-header-text').textContent =
+    `Hole ${roomData.currentHoleIdx + 1} of ${roomData.numHoles} · ${roomData.target.name}`;
+}
+
+function showOnlineHoleScorecard(roomData) {
+  const holeIdx = roomData.currentHoleIdx;
+  const hole    = roomData.courseHoles[holeIdx];
+  const myIdx   = onlineGetMyIdx();
+  const isHost  = myIdx === 0;
+  const isLast  = roomData.status === 'finished';
+
+  el('sc-hole-num').textContent   = holeIdx + 1;
+  el('sc-hole-total').textContent = roomData.numHoles;
+  el('sc-from').textContent       = hole.startCity.name;
+  el('sc-to').textContent         = hole.targetCity.name;
+  el('sc-par').textContent        = hole.par;
+
+  const rows = roomData.players.map((p, i) => {
+    const h        = p.holeScores[holeIdx];
+    const cumTotal = p.holeScores.reduce((s, x) => s + x.total, 0);
+    const cumVspar = p.holeScores.reduce((s, x) => s + x.vspar, 0);
+    const vsClass  = h.vspar < 0 ? 'under' : h.vspar > 0 ? 'over' : 'even';
+    const cumClass = cumVspar < 0 ? 'under' : cumVspar > 0 ? 'over' : 'even';
+    const youTag   = i === myIdx ? ' (you)' : '';
+    return `<tr>
+      <td><span class="sc-name-dot" style="background:${p.color}"></span>${p.name}${youTag}</td>
+      <td>${h.total}</td>
+      <td class="sc-vspar ${vsClass}">${relStr(h.vspar)}</td>
+      <td>${cumTotal}</td>
+      <td class="sc-vspar ${cumClass}">${relStr(cumVspar)}</td>
+    </tr>`;
+  }).join('');
+
+  el('sc-table').innerHTML = `
+    <thead><tr>
+      <th>Player</th><th>Strokes</th><th>Hole</th><th>Total</th><th>Overall</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>`;
+
+  const btn = el('btn-next-hole');
+  if (isLast) {
+    btn.textContent = 'See Results';
+    btn.disabled    = false;
+    btn.onclick     = () => {
+      el('hole-scorecard').style.display = 'none';
+      showOnlineCourseResults(roomData);
+    };
+  } else if (isHost) {
+    btn.textContent = 'Next Hole →';
+    btn.disabled    = false;
+    btn.onclick     = async () => {
+      btn.disabled    = true;
+      btn.textContent = 'Starting…';
+      try { await onlineAdvanceHole(); } catch { btn.disabled = false; btn.textContent = 'Next Hole →'; }
+    };
+  } else {
+    btn.textContent = 'Waiting for host…';
+    btn.disabled    = true;
+    btn.onclick     = null;
+  }
+
+  el('hole-scorecard').style.display = 'flex';
+}
+
+function showOnlineCourseResults(roomData) {
+  const myIdx  = onlineGetMyIdx();
+  const totals = roomData.players.map(p => {
+    const total  = p.holeScores.reduce((s, h) => s + h.total, 0);
+    const vspar  = p.holeScores.reduce((s, h) => s + h.vspar, 0);
+    return { ...p, total, vspar, holes: p.holeScores };
+  }).sort((a, b) => a.total - b.total);
+
+  const winner = totals[0];
+  el('cr-winner').innerHTML =
+    `<span class="cr-winner-badge">🏆 ${winner.name} Wins!</span>`;
+
+  const holeHeaders = roomData.courseHoles.map((_, i) =>
+    `<th class="cr-hole-header">H${i + 1}</th>`).join('');
+
+  const playerRows = totals.map(p => {
+    const holeCells = p.holes.map(h => {
+      const cls = h.vspar < 0 ? 'under' : h.vspar > 0 ? 'over' : 'even';
+      return `<td class="sc-vspar ${cls}">${h.total}</td>`;
+    }).join('');
+    const cumClass = p.vspar < 0 ? 'under' : p.vspar > 0 ? 'over' : 'even';
+    const youTag   = p.id === myPlayerId() ? ' (you)' : '';
+    return `<tr>
+      <td><span class="sc-name-dot" style="background:${p.color}"></span>${p.name}${youTag}</td>
+      ${holeCells}
+      <td><strong>${p.total}</strong></td>
+      <td class="sc-vspar ${cumClass}"><strong>${relStr(p.vspar)}</strong></td>
+    </tr>`;
+  }).join('');
+
+  el('cr-table').innerHTML = `
+    <thead><tr>
+      <th>Player</th>${holeHeaders}<th>Total</th><th>vs Par</th>
+    </tr></thead>
+    <tbody>${playerRows}</tbody>`;
+
+  el('hole-scorecard').style.display = 'none';
+  el('course-results').style.display = 'flex';
 }
 
 // ── Game start & setup ─────────────────────────────────────────────────────────
@@ -1147,6 +1290,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  document.querySelectorAll('#online-format-btns .course-opt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedOnlineFormat = btn.dataset.format;
+      document.querySelectorAll('#online-format-btns .course-opt-btn').forEach(b =>
+        b.classList.toggle('selected', b === btn));
+      el('online-course-opts').style.display = selectedOnlineFormat === 'course' ? 'block' : 'none';
+    });
+  });
+
+  document.querySelectorAll('#online-holes-btns .course-opt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedOnlineHoles = parseInt(btn.dataset.holes, 10);
+      document.querySelectorAll('#online-holes-btns .course-opt-btn').forEach(b =>
+        b.classList.toggle('selected', b === btn));
+    });
+  });
+
   el('btn-do-create').addEventListener('click', async () => {
     const name = el('online-create-name').value.trim();
     el('create-error').textContent = '';
@@ -1154,7 +1314,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = el('btn-do-create');
     btn.disabled = true; btn.textContent = 'Creating…';
     try {
-      const roomId = await onlineCreateRoom(name, selectedOnlineMap);
+      const options = selectedOnlineFormat === 'course'
+        ? { gameType: 'course', numHoles: selectedOnlineHoles }
+        : { gameType: 'single' };
+      const roomId = await onlineCreateRoom(name, selectedOnlineMap, options);
       enterLobby(roomId);
     } catch (err) {
       el('create-error').textContent = err.message || 'Failed to create room.';
@@ -1277,11 +1440,15 @@ document.addEventListener('DOMContentLoaded', () => {
     startCourse({ playerNames, map: courseMap, numHoles: courseHoles });
   });
 
-  el('btn-next-hole').addEventListener('click', startNextHole);
+  el('btn-next-hole').addEventListener('click', () => {
+    if (!onlineMode) startNextHole();
+    // online mode: handled by dynamic onclick set in showOnlineHoleScorecard
+  });
 
   el('btn-course-menu').addEventListener('click', resetToMenu);
   el('btn-course-again').addEventListener('click', () => {
     el('course-results').style.display = 'none';
+    if (onlineMode) { resetToMenu(); return; }
     if (courseLastOptions) startCourse(courseLastOptions);
   });
 
