@@ -421,16 +421,22 @@ class GameState {
     const penalty = isPenalty(clubName, distKm, this.activeClubs, this.penaltyMargin);
     const clubObj = this.activeClubs.find(c => c.name === clubName);
 
-    let actualDest    = dest;
-    let overshootDest = null;
-    if (clubObj && distKm > clubObj.ideal + PENALTY_MARGIN) {
+    let actualDest     = dest;
+    let undershootDest = null; // aimed city when ball comes up short
+    let overshoot      = false; // club too strong, ball reaches city but mishit
+
+    if (clubObj && distKm > clubObj.ideal + this.penaltyMargin) {
+      // Undershoot: club too weak, ball lands short along the flight path
       const landing = findOvershootCapital(player.current, dest, clubObj.ideal, this.activeCapitals);
       if (landing) {
-        overshootDest = dest;
-        actualDest    = landing;
+        undershootDest = dest;
+        actualDest     = landing;
       } else {
         return { error: `${clubName} can only reach ${clubObj.ideal.toLocaleString()} km — no capital exists within that range in that direction. Try a longer club. No stroke used.` };
       }
+    } else if (penalty && clubObj && clubObj.ideal > distKm + this.penaltyMargin) {
+      // Overshoot/mishit: club too strong, ball stays at intended city (+1 penalty)
+      overshoot = true;
     }
 
     const actualDistKm = actualDest === dest
@@ -449,7 +455,8 @@ class GameState {
       penalty,
       idealClub:    getClubForDistance(actualDistKm, this.activeClubs).name,
       strokeNumber: player.strokes,
-      overshootDest,
+      undershootDest,
+      overshoot,
       playerIdx:    this.activePlayerIdx,
       playerColor:  player.color,
       playerName:   player.name,

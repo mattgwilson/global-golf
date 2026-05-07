@@ -346,8 +346,10 @@ function addShotHistory(shot) {
   item.className = `shot-item${shot.penalty ? ' penalty' : ''}`;
   if (!shot.penalty) item.style.setProperty('--shot-color', shot.playerColor || shot.clubColor);
 
-  const penaltyNote = shot.overshootDest
-    ? ` · ⚠ overshot ${shot.overshootDest.name}`
+  const penaltyNote = shot.undershootDest
+    ? ` · ⚠ undershoot (aimed ${shot.undershootDest.name})`
+    : shot.overshoot
+    ? ` · ⚠ overshoot — use ${shot.idealClub}`
     : shot.penalty ? ` · ⚠ penalty (use ${shot.idealClub})` : '';
 
   const playerTag = game.players.length > 1
@@ -368,8 +370,10 @@ function buildShotLog(shots, showPlayer) {
   return `
     <div class="finish-shot-log">
       ${shots.map(shot => {
-        const penaltyNote = shot.overshootDest
-          ? ` · overshot ${shot.overshootDest.name}`
+        const penaltyNote = shot.undershootDest
+          ? ` · undershoot (aimed ${shot.undershootDest.name})`
+          : shot.overshoot
+          ? ` · overshoot — ${shot.idealClub} needed`
           : shot.penalty ? ` · used ${shot.idealClub}` : '';
         const playerTag = showPlayer
           ? `<span class="fsl-player" style="color:${shot.playerColor}">${shot.playerName}</span> ` : '';
@@ -567,8 +571,10 @@ function handleOnlineUpdate(roomData) {
     const newlyVisible   = other.shots.filter(s => s.strokeNumber <= me.strokes && !wasVisible.has(s.strokeNumber));
     if (newlyVisible.length) {
       const s = newlyVisible[newlyVisible.length - 1];
-      if (s.overshootDest) {
-        setMessage(`${other.name}: Overshot → landed in ${s.to.name} — +1 penalty.`, 'warn');
+      if (s.undershootDest) {
+        setMessage(`${other.name}: Undershoot → aimed ${s.undershootDest.name}, landed in ${s.to.name} — +1 penalty.`, 'warn');
+      } else if (s.overshoot) {
+        setMessage(`${other.name}: Overshoot mishit to ${s.to.name} — club too strong. +1 penalty.`, 'warn');
       } else if (s.penalty) {
         setMessage(`${other.name}: Penalty! ${fmtDist(s.distKm)} — ${s.idealClub} needed.`, 'warn');
       } else {
@@ -785,8 +791,10 @@ async function shoot() {
     document.querySelectorAll('.club-btn').forEach(b => b.classList.remove('selected'));
     selectedClub = null;
     flyTo(shot.to, 1.8);
-    if (shot.overshootDest) {
-      setMessage(`Overshot → landed in ${shot.to.name} — +1 penalty.`, 'warn');
+    if (shot.undershootDest) {
+      setMessage(`Undershoot! Aimed for ${shot.undershootDest.name} but landed in ${shot.to.name} — club too weak. +1 penalty.`, 'warn');
+    } else if (shot.overshoot) {
+      setMessage(`Overshoot! Mishit — ${shot.club} was too strong for ${fmtDist(shot.distKm)}. Use ${shot.idealClub} next time. +1 penalty.`, 'warn');
     } else if (shot.penalty) {
       setMessage(`Penalty! ${fmtDist(shot.distKm)} — that's a ${shot.idealClub}.`, 'warn');
     } else {
@@ -821,8 +829,10 @@ async function shoot() {
   updateScoreboard();
   addShotHistory(shot);
 
-  if (shot.overshootDest) {
-    setMessage(`Overshot! Aimed for ${shot.overshootDest.name} but landed in ${shot.to.name} — nearest capital on the flight path at ${fmtDist(shot.distKm)}. +1 penalty.`, 'warn');
+  if (shot.undershootDest) {
+    setMessage(`Undershoot! Aimed for ${shot.undershootDest.name} but landed in ${shot.to.name} — club too weak. +1 penalty.`, 'warn');
+  } else if (shot.overshoot) {
+    setMessage(`Overshoot! Mishit — ${shot.club} was too strong for ${fmtDist(shot.distKm)}. Use ${shot.idealClub} next time. +1 penalty.`, 'warn');
   } else if (shot.penalty) {
     setMessage(`Penalty stroke! ${fmtDist(shot.distKm)} — that called for a ${shot.idealClub}.`, 'warn');
   } else {
