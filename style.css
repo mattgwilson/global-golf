@@ -1824,3 +1824,179 @@ html, body {
   transform: translateY(-2px) scale(1.02);
   box-shadow: 0 8px 28px rgba(0,255,136,0.45);
 }
+
+/* ── Hole header ──────────────────────────────────────────── */
+
+.hole-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,255,136,0.08);
+  border: 1px solid rgba(0,255,136,0.2);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 4px;
+  letter-spacing: 0.02em;
+}
+
+/* ── Course setup ─────────────────────────────────────────── */
+
+.course-setup-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.course-setup-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  width: 52px;
+  flex-shrink: 0;
+}
+
+.course-opt-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.course-opt-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.course-opt-btn.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+  font-weight: 600;
+}
+
+.course-names {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+
+/* ── Scorecard overlay ────────────────────────────────────── */
+
+.scorecard-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px 20px 20px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.scorecard-header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.sc-hole-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+
+.sc-route {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.sc-par {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.scorecard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.scorecard-table th {
+  padding: 6px 8px;
+  text-align: center;
+  color: var(--text-muted);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.72rem;
+}
+
+.scorecard-table th:first-child {
+  text-align: left;
+}
+
+.scorecard-table td {
+  padding: 7px 8px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.scorecard-table td:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+.scorecard-table tr:last-child td {
+  border-bottom: none;
+}
+
+.sc-name-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.sc-vspar.under { color: #00ff88; }
+.sc-vspar.over  { color: #ff7675; }
+.sc-vspar.even  { color: var(--text-muted); }
+
+.sc-total-row td {
+  font-weight: 700;
+  border-top: 1px solid var(--border);
+  padding-top: 9px;
+}
+
+.course-result-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 16px;
+  gap: 4px;
+}
+
+/* Full scorecard grid (course results) */
+.cr-hole-header { color: var(--text-muted); font-size: 0.7rem; }
+.cr-winner-badge {
+  display: inline-block;
+  background: rgba(0,255,136,0.12);
+  border: 1px solid rgba(0,255,136,0.3);
+  color: #00ff88;
+  border-radius: 20px;
+  padding: 2px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 4px;
+}

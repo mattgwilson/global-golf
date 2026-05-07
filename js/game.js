@@ -534,6 +534,91 @@ class GameState {
       return 0;
     });
   }
+
+  // ── Course mode ───────────────────────────────────────────────────────────────
+
+  startCourse(options) {
+    const { playerNames, map, numHoles } = options;
+    this.reset();
+    this.mode = 'course';
+    const isUS = map === 'us';
+    this.activeCapitals = isUS ? US_STATE_CAPITALS : CAPITALS;
+    this.activeClubs    = isUS ? US_CLUBS : CLUBS;
+    this.penaltyMargin  = isUS ? US_PENALTY_MARGIN : PENALTY_MARGIN;
+    this.capitalType    = isUS ? 'US state capital' : 'world capital';
+    this.numHoles       = numHoles;
+    this.currentHoleIdx = 0;
+
+    this.players = playerNames.map((name, i) =>
+      ({ ...createPlayer(name, PLAYER_COLORS[i % PLAYER_COLORS.length]), holeScores: [] })
+    );
+
+    const rng     = mulberry32(Math.floor(Math.random() * 1e9));
+    const minDist = isUS ? MIN_US_DIST : MIN_GAME_DIST;
+    this.courseHoles = Array.from({ length: numHoles }, () => {
+      let start, target, dist, attempts = 0;
+      do {
+        start  = this.activeCapitals[Math.floor(rng() * this.activeCapitals.length)];
+        target = this.activeCapitals[Math.floor(rng() * this.activeCapitals.length)];
+        dist   = haversineKm(start.lat, start.lng, target.lat, target.lng);
+        attempts++;
+      } while (attempts < 200 && (target.name === start.name || dist < minDist));
+      const par = isUS ? calcParUS(dist) : calcPar(dist);
+      return { startCity: start, targetCity: target, par };
+    });
+
+    this._startHole(0);
+  }
+
+  _startHole(idx) {
+    const hole = this.courseHoles[idx];
+    this.target          = hole.targetCity;
+    this.par             = hole.par;
+    this.finished        = false;
+    this.activePlayerIdx = 0;
+    this.players.forEach(p => {
+      p.current     = hole.startCity;
+      p.strokes     = 0;
+      p.penalties   = 0;
+      p.shots       = [];
+      p.finished    = false;
+      p.finishOrder = null;
+    });
+  }
+
+  advanceHole() {
+    const hole = this.courseHoles[this.currentHoleIdx];
+    this.players.forEach(p => {
+      p.holeScores.push({
+        strokes:   p.strokes,
+        penalties: p.penalties,
+        total:     p.strokes + p.penalties,
+        vspar:     (p.strokes + p.penalties) - hole.par,
+      });
+    });
+    this.currentHoleIdx++;
+    if (this.currentHoleIdx < this.numHoles) {
+      this._startHole(this.currentHoleIdx);
+      return false;
+    }
+    return true;
+  }
+
+  get courseComplete() {
+    return this.mode === 'course' && this.currentHoleIdx >= this.numHoles;
+  }
+
+  courseTotals() {
+    return [...this.players]
+      .map(p => ({
+        name:   p.name,
+        color:  p.color,
+        holes:  p.holeScores,
+        total:  p.holeScores.reduce((s, h) => s + h.total, 0),
+        vspar:  p.holeScores.reduce((s, h) => s + h.vspar, 0),
+      }))
+      .sort((a, b) => a.total - b.total);
+  }
 }
 
 window.CLUBS          = CLUBS;

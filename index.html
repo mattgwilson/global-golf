@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛳</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
   <div id="app">
@@ -87,6 +87,11 @@
             <span class="mode-label">Battle Royale</span>
             <span class="mode-sub">2–4 players</span>
           </button>
+          <button id="btn-course" class="mode-btn">
+            <span class="mode-icon">🏌️</span>
+            <span class="mode-label">Course Play</span>
+            <span class="mode-sub">3, 9 or 18 holes</span>
+          </button>
         </div>
 
         <div class="mode-section-label">Online</div>
@@ -143,6 +148,36 @@
           <button id="btn-start-1v1" class="start-setup-btn">Start 1v1</button>
         </div>
 
+        <!-- Course Play setup -->
+        <div id="setup-course" class="setup-panel" style="display:none">
+          <div class="setup-title">Course Play</div>
+          <div class="course-setup-row">
+            <span class="course-setup-label">Holes</span>
+            <div class="course-opt-btns" id="course-hole-btns">
+              <button class="course-opt-btn selected" data-holes="3">3</button>
+              <button class="course-opt-btn" data-holes="9">9</button>
+              <button class="course-opt-btn" data-holes="18">18</button>
+            </div>
+          </div>
+          <div class="course-setup-row">
+            <span class="course-setup-label">Map</span>
+            <div class="course-opt-btns" id="course-map-btns">
+              <button class="course-opt-btn selected" data-map="world">🌍 World</button>
+              <button class="course-opt-btn" data-map="us">🇺🇸 US</button>
+            </div>
+          </div>
+          <div class="course-setup-row">
+            <span class="course-setup-label">Players</span>
+            <div class="course-opt-btns" id="course-count-btns">
+              <button class="course-opt-btn selected" data-count="2">2</button>
+              <button class="course-opt-btn" data-count="3">3</button>
+              <button class="course-opt-btn" data-count="4">4</button>
+            </div>
+          </div>
+          <div id="course-names" class="course-names"></div>
+          <button id="btn-start-course" class="start-setup-btn">Start Course</button>
+        </div>
+
         <!-- Battle Royale setup -->
         <div id="setup-battle" class="setup-panel" style="display:none">
           <div class="setup-title">Battle Royale</div>
@@ -173,6 +208,11 @@
       </div>
 
       <div id="game-panel">
+
+        <!-- Hole header (course mode only) -->
+        <div id="hole-header" class="hole-header" style="display:none">
+          <span id="hole-header-text"></span>
+        </div>
 
         <!-- Active player indicator (multiplayer only) -->
         <div id="player-indicator" class="player-indicator" style="display:none">
@@ -356,6 +396,34 @@
     </div>
   </div>
 
+  <!-- Hole scorecard overlay -->
+  <div id="hole-scorecard" class="modal-overlay" style="display:none">
+    <div class="scorecard-card">
+      <div class="scorecard-header">
+        <div class="sc-hole-label">Hole <span id="sc-hole-num">1</span> of <span id="sc-hole-total">9</span></div>
+        <div class="sc-route"><span id="sc-from"></span> → <span id="sc-to"></span></div>
+        <div class="sc-par">Par <span id="sc-par"></span></div>
+      </div>
+      <table class="scorecard-table" id="sc-table"></table>
+      <button id="btn-next-hole" class="start-setup-btn" style="margin-top:16px">Next Hole →</button>
+    </div>
+  </div>
+
+  <!-- Course results overlay -->
+  <div id="course-results" class="modal-overlay" style="display:none">
+    <div class="scorecard-card">
+      <div class="scorecard-header">
+        <div class="sc-hole-label">Course Complete</div>
+        <div id="cr-winner" class="sc-route"></div>
+      </div>
+      <table class="scorecard-table" id="cr-table"></table>
+      <div class="course-result-actions">
+        <button id="btn-course-again" class="start-setup-btn">Play Again</button>
+        <button id="btn-course-menu" class="auth-link" style="margin-top:6px">Main Menu</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Auth modal -->
   <div id="auth-modal" class="modal-overlay" style="display:none">
     <div class="auth-card">
@@ -440,11 +508,11 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="js/capitals.js?v=2"></script>
   <script src="js/us-states.js?v=2"></script>
-  <script src="js/game.js?v=5"></script>
+  <script src="js/game.js?v=6"></script>
   <script src="js/firebase-init.js?v=2"></script>
   <script src="js/stats.js?v=2"></script>
   <script src="js/auth.js?v=2"></script>
   <script src="js/online.js?v=4"></script>
-  <script src="js/main.js?v=11"></script>
+  <script src="js/main.js?v=12"></script>
 </body>
 </html>

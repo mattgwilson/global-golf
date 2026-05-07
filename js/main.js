@@ -9,6 +9,9 @@ let onlineMode        = false;
 let onlinePrevData    = null;
 let selectedOnlineMap = 'random';
 
+// Course play state
+let courseLastOptions = null;
+
 function fmtDist(km) {
   if (useImperial) return `${Math.round(km * 0.621371).toLocaleString()} mi`;
   return `${km.toLocaleString()} km`;
@@ -389,6 +392,154 @@ function buildShotLog(shots, showPlayer) {
     </div>`;
 }
 
+function startCourse(options) {
+  courseLastOptions = options;
+  game.startCourse(options);
+  aiThinking   = false;
+  selectedClub = null;
+  el('finish-overlay').style.display    = 'none';
+  el('hole-scorecard').style.display    = 'none';
+  el('course-results').style.display    = 'none';
+  el('shot-list').innerHTML = '<div class="empty-state">No shots yet</div>';
+  document.querySelectorAll('.club-btn').forEach(b => b.classList.remove('selected'));
+  el('city-input').value = '';
+  setMessage('');
+
+  const isUS = options.map === 'us';
+  el('city-input').placeholder = isUS ? 'Type a state capital...' : 'Type a capital city...';
+
+  buildClubButtons();
+  updatePlayerIndicator();
+  updateScoreboard();
+  updateGlobe();
+  flyTo(game.current, isUS ? 1.4 : 2.0);
+  updateHoleHeader();
+
+  el('game-panel').style.display  = 'flex';
+  el('start-panel').style.display = 'none';
+  el('city-input').focus();
+}
+
+function updateHoleHeader() {
+  if (game.mode !== 'course') {
+    el('hole-header').style.display = 'none';
+    return;
+  }
+  el('hole-header').style.display = 'flex';
+  el('hole-header-text').textContent =
+    `Hole ${game.currentHoleIdx + 1} of ${game.numHoles} · ${game.target.name}`;
+}
+
+function relStr(v) {
+  return v > 0 ? `+${v}` : v === 0 ? 'E' : `${v}`;
+}
+
+function handleHoleComplete() {
+  const done = game.advanceHole();
+  showHoleScorecard();
+  if (done) {
+    // Replace "Next Hole" button with "See Results"
+    const btn = el('btn-next-hole');
+    btn.textContent = 'See Results';
+    btn.onclick = () => {
+      el('hole-scorecard').style.display = 'none';
+      showCourseResults();
+    };
+  } else {
+    const btn = el('btn-next-hole');
+    btn.textContent = 'Next Hole →';
+    btn.onclick = startNextHole;
+  }
+}
+
+function startNextHole() {
+  el('hole-scorecard').style.display = 'none';
+  el('shot-list').innerHTML = '<div class="empty-state">No shots yet</div>';
+  el('city-input').value = '';
+  setMessage('');
+  document.querySelectorAll('.club-btn').forEach(b => b.classList.remove('selected'));
+  selectedClub = null;
+  aiThinking   = false;
+
+  updateHoleHeader();
+  updatePlayerIndicator();
+  updateScoreboard();
+  updateGlobe();
+  flyTo(game.current, 2.0);
+  el('city-input').focus();
+
+  if (game.activePlayer.isAI) scheduleAI();
+}
+
+function showHoleScorecard() {
+  const holeIdx  = game.currentHoleIdx;
+  const hole     = game.courseHoles[holeIdx];
+  const holeNum  = holeIdx + 1;
+
+  el('sc-hole-num').textContent   = holeNum;
+  el('sc-hole-total').textContent = game.numHoles;
+  el('sc-from').textContent       = hole.startCity.name;
+  el('sc-to').textContent         = hole.targetCity.name;
+  el('sc-par').textContent        = hole.par;
+
+  const rows = game.players.map(p => {
+    const h      = p.holeScores[holeIdx];
+    const cumTotal = p.holeScores.reduce((s, x) => s + x.total, 0);
+    const cumVspar = p.holeScores.reduce((s, x) => s + x.vspar, 0);
+    const vsClass  = h.vspar < 0 ? 'under' : h.vspar > 0 ? 'over' : 'even';
+    const cumClass = cumVspar < 0 ? 'under' : cumVspar > 0 ? 'over' : 'even';
+    return `<tr>
+      <td><span class="sc-name-dot" style="background:${p.color}"></span>${p.name}</td>
+      <td>${h.total}</td>
+      <td class="sc-vspar ${vsClass}">${relStr(h.vspar)}</td>
+      <td>${cumTotal}</td>
+      <td class="sc-vspar ${cumClass}">${relStr(cumVspar)}</td>
+    </tr>`;
+  }).join('');
+
+  el('sc-table').innerHTML = `
+    <thead><tr>
+      <th>Player</th><th>Strokes</th><th>Hole</th><th>Total</th><th>Overall</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>`;
+
+  el('hole-scorecard').style.display = 'flex';
+}
+
+function showCourseResults() {
+  const totals = game.courseTotals();
+  const winner = totals[0];
+  el('cr-winner').innerHTML =
+    `<span class="cr-winner-badge">🏆 ${winner.name} Wins!</span>`;
+
+  // Build full scorecard: rows = players, cols = holes + total
+  const holeHeaders = game.courseHoles.map((_, i) =>
+    `<th class="cr-hole-header">H${i + 1}</th>`).join('');
+
+  const playerRows = totals.map(p => {
+    const holeCells = p.holes.map(h => {
+      const cls = h.vspar < 0 ? 'under' : h.vspar > 0 ? 'over' : 'even';
+      return `<td class="sc-vspar ${cls}">${h.total}</td>`;
+    }).join('');
+    const cumClass = p.vspar < 0 ? 'under' : p.vspar > 0 ? 'over' : 'even';
+    return `<tr>
+      <td><span class="sc-name-dot" style="background:${p.color}"></span>${p.name}</td>
+      ${holeCells}
+      <td><strong>${p.total}</strong></td>
+      <td class="sc-vspar ${cumClass}"><strong>${relStr(p.vspar)}</strong></td>
+    </tr>`;
+  }).join('');
+
+  el('cr-table').innerHTML = `
+    <thead><tr>
+      <th>Player</th>${holeHeaders}<th>Total</th><th>vs Par</th>
+    </tr></thead>
+    <tbody>${playerRows}</tbody>`;
+
+  el('hole-scorecard').style.display  = 'none';
+  el('course-results').style.display  = 'flex';
+}
+
 function showFinishScreen() {
   const overlay = el('finish-overlay');
 
@@ -738,7 +889,7 @@ function showOnlineFinishScreen(roomData) {
 // ── Game start & setup ─────────────────────────────────────────────────────────
 
 function showSetup(panel) {
-  ['setup-cpu','setup-1v1','setup-battle','setup-online-create','setup-online-join'].forEach(id => {
+  ['setup-cpu','setup-1v1','setup-battle','setup-online-create','setup-online-join','setup-course'].forEach(id => {
     el(id).style.display = id === panel ? 'flex' : 'none';
   });
 }
@@ -764,6 +915,8 @@ function startGame(mode, options = {}) {
   updateScoreboard();
   updateGlobe();
   flyTo(game.current, isUSMode ? 1.4 : 2.0);
+
+  updateHoleHeader();
 
   el('game-panel').style.display  = 'flex';
   el('start-panel').style.display = 'none';
@@ -844,7 +997,11 @@ async function shoot() {
   }
 
   if (result.finished) {
-    setTimeout(showFinishScreen, 800);
+    if (game.mode === 'course') {
+      setTimeout(handleHoleComplete, 800);
+    } else {
+      setTimeout(showFinishScreen, 800);
+    }
     return;
   }
 
@@ -899,7 +1056,11 @@ function runAITurn() {
   if (result.finished) {
     aiThinking = false;
     disableInput(false);
-    setTimeout(showFinishScreen, 800);
+    if (game.mode === 'course') {
+      setTimeout(handleHoleComplete, 800);
+    } else {
+      setTimeout(showFinishScreen, 800);
+    }
     return;
   }
 
@@ -1067,6 +1228,63 @@ document.addEventListener('DOMContentLoaded', () => {
     startGame('1v1', { names });
   });
 
+  // ── Course Play setup ──
+  let courseHoles = 3, courseMap = 'world', courseCount = 2;
+
+  el('btn-course').addEventListener('click', () => {
+    showSetup('setup-course');
+    updateCourseNames(2);
+  });
+
+  el('course-hole-btns').addEventListener('click', e => {
+    const btn = e.target.closest('.course-opt-btn[data-holes]');
+    if (!btn) return;
+    courseHoles = parseInt(btn.dataset.holes, 10);
+    el('course-hole-btns').querySelectorAll('.course-opt-btn').forEach(b =>
+      b.classList.toggle('selected', b === btn));
+  });
+
+  el('course-map-btns').addEventListener('click', e => {
+    const btn = e.target.closest('.course-opt-btn[data-map]');
+    if (!btn) return;
+    courseMap = btn.dataset.map;
+    el('course-map-btns').querySelectorAll('.course-opt-btn').forEach(b =>
+      b.classList.toggle('selected', b === btn));
+  });
+
+  el('course-count-btns').addEventListener('click', e => {
+    const btn = e.target.closest('.course-opt-btn[data-count]');
+    if (!btn) return;
+    courseCount = parseInt(btn.dataset.count, 10);
+    el('course-count-btns').querySelectorAll('.course-opt-btn').forEach(b =>
+      b.classList.toggle('selected', b === btn));
+    updateCourseNames(courseCount);
+  });
+
+  function updateCourseNames(count) {
+    const colors = PLAYER_COLORS;
+    el('course-names').innerHTML = Array.from({ length: count }, (_, i) => `
+      <input class="setup-input" style="border-left:3px solid ${colors[i]}"
+        id="course-name-${i}" type="text" placeholder="Player ${i + 1}" value="Player ${i + 1}">`
+    ).join('');
+  }
+
+  el('btn-start-course').addEventListener('click', () => {
+    const playerNames = Array.from({ length: courseCount }, (_, i) => {
+      const v = (el(`course-name-${i}`)?.value || '').trim();
+      return v || `Player ${i + 1}`;
+    });
+    startCourse({ playerNames, map: courseMap, numHoles: courseHoles });
+  });
+
+  el('btn-next-hole').addEventListener('click', startNextHole);
+
+  el('btn-course-menu').addEventListener('click', resetToMenu);
+  el('btn-course-again').addEventListener('click', () => {
+    el('course-results').style.display = 'none';
+    if (courseLastOptions) startCourse(courseLastOptions);
+  });
+
   // ── Battle Royale setup ──
   el('btn-battle').addEventListener('click', () => {
     showSetup('setup-battle');
@@ -1116,11 +1334,14 @@ function resetToMenu() {
     onlineMode     = false;
     onlinePrevData = null;
   }
-  el('start-panel').style.display   = 'flex';
-  el('game-panel').style.display    = 'none';
-  el('online-lobby').style.display  = 'none';
+  el('start-panel').style.display    = 'flex';
+  el('game-panel').style.display     = 'none';
+  el('online-lobby').style.display   = 'none';
   el('finish-overlay').style.display = 'none';
-  ['setup-cpu','setup-1v1','setup-battle','setup-online-create','setup-online-join'].forEach(id => {
+  el('hole-scorecard').style.display = 'none';
+  el('course-results').style.display = 'none';
+  el('hole-header').style.display    = 'none';
+  ['setup-cpu','setup-1v1','setup-battle','setup-online-create','setup-online-join','setup-course'].forEach(id => {
     if (el(id)) el(id).style.display = 'none';
   });
   game.reset();
