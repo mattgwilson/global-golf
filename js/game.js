@@ -209,59 +209,91 @@ function createPlayer(name, color, isAI = false, difficulty = null) {
   };
 }
 
+function planRouteNextStep(fromCity, target, capitals, maxReach) {
+  // BFS — no "must reduce distance" constraint, so the CPU can route around
+  // impassable ocean gaps (e.g. Pacific crossing Wellington → Montevideo).
+  // Returns the first city to visit on the shortest-hop path to target.
+  if (haversineKm(fromCity.lat, fromCity.lng, target.lat, target.lng) <= maxReach) {
+    return target;
+  }
+  const visited = new Set([fromCity.name]);
+  const queue   = [{ city: fromCity, firstStep: null }];
+  while (queue.length > 0) {
+    const { city: current, firstStep } = queue.shift();
+    const neighbors = capitals
+      .filter(cap => {
+        if (visited.has(cap.name)) return false;
+        const d = haversineKm(current.lat, current.lng, cap.lat, cap.lng);
+        return d > 0 && d <= maxReach;
+      })
+      .sort((a, b) =>
+        haversineKm(a.lat, a.lng, target.lat, target.lng) -
+        haversineKm(b.lat, b.lng, target.lat, target.lng)
+      );
+    for (const neighbor of neighbors) {
+      const step = firstStep || neighbor;
+      if (neighbor.name === target.name) return step;
+      if (!visited.has(neighbor.name)) {
+        visited.add(neighbor.name);
+        queue.push({ city: neighbor, firstStep: step });
+      }
+    }
+  }
+  return null;
+}
+
 function computeAIShot(fromCity, target, difficulty, capitals, clubs) {
   capitals = capitals || CAPITALS;
   clubs    = clubs    || CLUBS;
-  const totalDist     = Math.round(haversineKm(fromCity.lat, fromCity.lng, target.lat, target.lng));
-  const targetBearing = bearingRad(fromCity.lat, fromCity.lng, target.lat, target.lng);
+  const penaltyMargin = clubs === US_CLUBS ? US_PENALTY_MARGIN : PENALTY_MARGIN;
+  const maxReach      = clubs[clubs.length - 1].ideal + penaltyMargin;
 
-  // ── Step 1: find cities that REDUCE remaining distance ─────────────────────
-  // This guarantees forward progress every shot — no infinite loops possible.
+  // ── Step 0: plan route ─────────────────────────────────────────────────────
+  // BFS finds the correct next waypoint even when the greedy shortest-path
+  // direction crosses an uncrossable ocean. All difficulties use this so
+  // the CPU never gets permanently stuck.
+  const waypoint = planRouteNextStep(fromCity, target, capitals, maxReach);
+  if (!waypoint) return null;
+
+  const waypointDist    = haversineKm(fromCity.lat, fromCity.lng, waypoint.lat, waypoint.lng);
+  const waypointBearing = bearingRad(fromCity.lat, fromCity.lng, waypoint.lat, waypoint.lng);
+
+  // ── Step 1: candidates — reachable cities making progress toward waypoint ──
   let candidates = capitals.filter(cap => {
     if (cap.name === fromCity.name) return false;
-    const remaining = haversineKm(cap.lat, cap.lng, target.lat, target.lng);
-    if (remaining >= totalDist) return false; // must get closer
+    const shotDist      = haversineKm(fromCity.lat, fromCity.lng, cap.lat, cap.lng);
+    if (shotDist > maxReach) return false;
+    const capToWaypoint = haversineKm(cap.lat, cap.lng, waypoint.lat, waypoint.lng);
+    if (capToWaypoint >= waypointDist) return false;
     const capBearing = bearingRad(fromCity.lat, fromCity.lng, cap.lat, cap.lng);
-    let angleDiff = Math.abs(capBearing - targetBearing);
+    let angleDiff = Math.abs(capBearing - waypointBearing);
     if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
     return angleDiff < Math.PI / 2;
   });
 
-  // Directional fallback: any capital closer to target regardless of angle
   if (candidates.length === 0) {
-    candidates = capitals.filter(cap =>
-      cap.name !== fromCity.name &&
-      haversineKm(cap.lat, cap.lng, target.lat, target.lng) < totalDist
-    );
+    candidates = capitals.filter(cap => {
+      if (cap.name === fromCity.name) return false;
+      const shotDist      = haversineKm(fromCity.lat, fromCity.lng, cap.lat, cap.lng);
+      const capToWaypoint = haversineKm(cap.lat, cap.lng, waypoint.lat, waypoint.lng);
+      return shotDist <= maxReach && capToWaypoint < waypointDist;
+    });
   }
 
-  if (candidates.length === 0) return null; // should never happen with a full capitals list
+  if (candidates.length === 0) return null;
 
-  // Sort best → worst (least remaining distance first)
+  // Sort: most progress toward waypoint first
   candidates.sort((a, b) =>
-    haversineKm(a.lat, a.lng, target.lat, target.lng) -
-    haversineKm(b.lat, b.lng, target.lat, target.lng)
+    haversineKm(a.lat, a.lng, waypoint.lat, waypoint.lng) -
+    haversineKm(b.lat, b.lng, waypoint.lat, waypoint.lng)
   );
 
-  // ── Step 2a: hard mode "hero shot" (20% chance) ───────────────────────────
-  // Pick the FARTHEST valid city in the target direction instead of the most
-  // direct route. Covers maximum distance per shot → birdie finishes possible.
-  if (difficulty === 'hard' && Math.random() < 0.20) {
-    const hero = [...candidates].sort((a, b) =>
-      haversineKm(fromCity.lat, fromCity.lng, b.lat, b.lng) -
-      haversineKm(fromCity.lat, fromCity.lng, a.lat, a.lng)
-    )[0];
-    const dist = Math.round(haversineKm(fromCity.lat, fromCity.lng, hero.lat, hero.lng));
-    return { clubName: getClubForDistance(dist, clubs).name, dest: hero };
-  }
-
-  // ── Step 2b: pick destination based on city-selection quality ──────────────
+  // ── Step 2: pick destination by difficulty ─────────────────────────────────
   const pct      = difficulty === 'hard' ? 0.05 : difficulty === 'medium' ? 0.20 : 0.40;
   const poolSize = Math.max(1, Math.ceil(candidates.length * pct));
   const dest     = candidates[Math.floor(Math.random() * poolSize)];
 
-  // ── Step 3: choose club — misclub rate drives the score distribution ────────
-  // Target averages:  easy ≈ +3 (80% misclub), medium ≈ +2 (65%), hard ≈ +0.5 (20%)
+  // ── Step 3: choose club (misclub UP only to avoid overshoots) ──────────────
   const actualDist  = Math.round(haversineKm(fromCity.lat, fromCity.lng, dest.lat, dest.lng));
   const correctClub = getClubForDistance(actualDist, clubs);
   const correctIdx  = clubs.indexOf(correctClub);
@@ -269,8 +301,7 @@ function computeAIShot(fromCity, target, difficulty, capitals, clubs) {
   const misclubRate = difficulty === 'hard' ? 0.20 : difficulty === 'medium' ? 0.65 : 0.80;
   let clubIdx;
   if (Math.random() < misclubRate) {
-    const dir = Math.random() < 0.5 ? 1 : -1;
-    clubIdx = Math.max(0, Math.min(clubs.length - 1, correctIdx + dir));
+    clubIdx = Math.min(clubs.length - 1, correctIdx + 1);
   } else {
     clubIdx = correctIdx;
   }
