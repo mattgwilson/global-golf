@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛳</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
   <div id="app">
@@ -294,6 +294,37 @@
           <div class="howto-club-dots">· · ·</div>
           <div class="howto-club-item"><span>Driver</span><span>8,000 km</span></div>
         </div>
+      </div>
+
+      <div class="howto-section">
+        <div class="howto-section-title">⚠️ Penalties</div>
+        <p>You earn a <strong>+1 penalty stroke</strong> in two situations:</p>
+        <div class="howto-penalty-list">
+          <div class="howto-penalty-item">
+            <span class="howto-penalty-icon">🏒</span>
+            <div>
+              <strong>Wrong club</strong> — the club you selected doesn't match the distance to your chosen city. Each club has a specific range; if the shot distance falls outside that range, it counts as a penalty. The game will tell you which club was ideal.
+            </div>
+          </div>
+          <div class="howto-penalty-item">
+            <span class="howto-penalty-icon">💨</span>
+            <div>
+              <strong>Overshoot</strong> — see below.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="howto-section">
+        <div class="howto-section-title">💨 Overshooting</div>
+        <p>If the city you pick is <strong>further from you than the target is</strong>, your shot flies past the hole and lands somewhere beyond it — just like hitting a putt too hard.</p>
+        <div class="howto-overshoot-box">
+          <div class="howto-overshoot-row"><span>📍</span><span>You are in <strong>Berlin</strong></span></div>
+          <div class="howto-overshoot-row"><span>🎯</span><span>Target is <strong>Cairo</strong> (3,200 km away)</span></div>
+          <div class="howto-overshoot-row"><span>✈️</span><span>You shoot to <strong>Nairobi</strong> (6,100 km away)</span></div>
+          <div class="howto-overshoot-row overshoot-result"><span>💥</span><span>Overshot! You land in a random city past Cairo — <strong>+1 penalty</strong></span></div>
+        </div>
+        <p style="margin-top:8px">Always pick a city that keeps you <em>between</em> your current position and the target, or land exactly on the target to finish the hole.</p>
       </div>
 
       <div class="howto-section">
