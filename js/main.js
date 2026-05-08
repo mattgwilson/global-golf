@@ -429,7 +429,7 @@ function updateHoleHeader() {
   }
   el('hole-header').style.display = 'flex';
   el('hole-header-text').textContent =
-    `Hole ${game.currentHoleIdx + 1} of ${game.numHoles} · ${game.target.name}`;
+    `Hole ${game.currentHoleIdx + 1} of ${game.numHoles}`;
 }
 
 function relStr(v) {
@@ -733,6 +733,7 @@ function handleOnlineUpdate(roomData) {
     game.target         = roomData.target;
     game.par            = roomData.par;
     game.currentHoleIdx = roomData.currentHoleIdx;
+    game.finished       = false;
     flyTo(roomData.courseHoles[roomData.currentHoleIdx].startCity, 2.0);
     disableInput(false);
   }
@@ -811,7 +812,7 @@ function updateGlobeOnline(roomData) {
     if (!p.finished) {
       // For opponent, show position at last revealed shot; fall back to start city
       const lastRevealed = visibleShots[visibleShots.length - 1];
-      const displayPos   = isMe ? p.current : (lastRevealed ? lastRevealed.to : roomData.startCity);
+      const displayPos   = isMe ? p.current : (lastRevealed ? lastRevealed.to : p.current);
       const rgb = hexToRgb(p.color);
       points.push({ lat: displayPos.lat, lng: displayPos.lng, color: p.color, radius: 0.45 });
       rings.push({ lat: displayPos.lat, lng: displayPos.lng, color: t => `rgba(${rgb},${1-t})`, maxR: 2.5, speed: 1.2, period: 900 });
@@ -926,7 +927,7 @@ function updateOnlineHoleHeader(roomData) {
   }
   el('hole-header').style.display = 'flex';
   el('hole-header-text').textContent =
-    `Hole ${roomData.currentHoleIdx + 1} of ${roomData.numHoles} · ${roomData.target.name}`;
+    `Hole ${roomData.currentHoleIdx + 1} of ${roomData.numHoles}`;
 }
 
 function showOnlineHoleScorecard(roomData) {
